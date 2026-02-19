@@ -1,0 +1,50 @@
+# 1. demo-ui namespace 및 리소스 (기존과 동일)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-ui
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-demo
+  namespace: demo-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-demo
+  template:
+    metadata:
+      labels:
+        app: agent-demo
+    spec:
+      containers:
+      - name: agent-demo
+        image: ctcdemo1770171004.azurecr.io/demo-ui:latest
+        ports:
+        - containerPort: 8501
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-demo-svc
+  namespace: demo-ui
+spec:
+  selector:
+    app: agent-demo
+  ports:
+  - port: 80
+    targetPort: 8501
+---
+# 2. dify namespace에 ExternalName Service 추가
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-demo-external
+  namespace: dify
+spec:
+  type: ExternalName
+  externalName: agent-demo-svc.demo-ui.svc.cluster.local
+  ports:
+  - port: 80
