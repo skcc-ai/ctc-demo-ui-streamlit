@@ -44,7 +44,7 @@ tasks:
   run-streamlit:
     desc: Run streamlit example app
     cmds:
-      - uv run streamlit run examples/streamlit_app.py
+      - uv run streamlit run examples/Overview.py
 
   generate-tests:
     desc: Generate playwright tests
@@ -54,7 +54,7 @@ tasks:
   _run-streamlit:
     internal: true
     cmds:
-      - uv run streamlit run examples/streamlit_app.py --server.port 8599 --server.headless true
+      - uv run streamlit run examples/Overview.py --server.port 8599 --server.headless true
 
   _run-playwright:
     internal: true

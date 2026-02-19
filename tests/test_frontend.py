@@ -35,7 +35,7 @@ def _after_test(page: Page, request):
 
 @contextmanager
 def run_streamlit():
-    """Run the streamlit app at examples/streamlit_app.py on port 8599"""
+    """Run the streamlit app at examples/Overview.py on port 8599"""
     import subprocess
 
     if LOCAL_TEST:
@@ -48,7 +48,7 @@ def run_streamlit():
             [
                 "streamlit",
                 "run",
-                "examples/streamlit_app.py",
+                "examples/Overview.py",
                 "--server.port",
                 PORT,
                 "--server.headless",
