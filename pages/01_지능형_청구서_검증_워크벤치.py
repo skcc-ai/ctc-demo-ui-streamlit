@@ -70,10 +70,12 @@ if sub == "발주서 목록":
 
 elif sub == "청구서 검증 요청 현황":
 
-    col1, col2 = st.columns([8, 2])
+    col1, col2, col3 = st.columns([3, 4, 2])
     with col1:
         st.subheader("청구서 검증 요청 현황")
     with col2:
+        exclude_matched = st.checkbox("발주서와 동일한 항목 제외")
+    with col3:
         if st.button("📄 청구서 업로드", use_container_width=True):
             st.session_state.show_upload = True
     if st.session_state.get("show_upload", False):
@@ -124,6 +126,9 @@ elif sub == "청구서 검증 요청 현황":
             st.session_state.show_upload = False
 
     df = get_table_data("SELECT * FROM invoice")
+
+    if exclude_matched:
+        df = df[df["match_status"] != "MATCHED"]
 
     # 선택 가능한 테이블
     selected = st.dataframe(
