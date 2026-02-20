@@ -47,21 +47,80 @@ div[role="radiogroup"] label {
 sub = st.sidebar.radio("", ["발주서 목록", "청구서 검증 요청 현황"])
 
 if sub == "발주서 목록":
+
+    st.subheader("발주서 목록")
     df = get_table_data("SELECT * FROM po_header")
-    st.dataframe(df)
+
+    selected = st.dataframe(
+        df,
+        use_container_width=True,
+        on_select="rerun",
+        selection_mode="single-row"
+    )
+
+    if selected.selection.rows:
+        row_idx = selected.selection.rows[0]
+        row = df.iloc[row_idx]
+
+        st.divider()
+        st.subheader("📋 발주서 상세 정보")
+
+        for col in df.columns:
+            st.markdown(f"**{col}**: {row[col]}")
 
 elif sub == "청구서 검증 요청 현황":
+
     col1, col2 = st.columns([8, 2])
     with col1:
         st.subheader("청구서 검증 요청 현황")
     with col2:
         if st.button("📄 청구서 업로드", use_container_width=True):
             st.session_state.show_upload = True
-
     if st.session_state.get("show_upload", False):
         uploaded_file = st.file_uploader("PDF 파일을 선택하세요", type=["pdf"])
         if uploaded_file:
-            st.success(f"{uploaded_file.name} 업로드 완료!")
+            with st.spinner("청구서 분석 중..."):
+                try:
+                    import json
+                    import requests
+                    response = requests.post(
+                        "https://backend.alli.ai/webapi/apps/TExNQXBwOjY5OTU1Yjk4ZDY1ODkzOGM1YmVkYzliMQ==/run",
+                        headers={
+                            "API-KEY": "SUKYXKTTRPYVAHHOFTSWQYWS3QFSONQJYA",
+                            "Content-Type": "application/json"
+                        },
+                        data=json.dumps({
+                            "chat": {
+                                "message": uploaded_file.name,
+                                "source": {
+                                    "knowledgeBaseIds": [],
+                                    "folderIds": [],
+                                    "webSites": []
+                                }
+                            },
+                            "inputs": {
+                                "ANY_ADDITIONAL_PROPERTY": "anything"
+                            },
+                            "mode": "sync",
+                            "isStateful": False,
+                            "conversationId": "",
+                            "llmModel": "",
+                            "llmPromptId": "",
+                            "gaPromptGroupId": "",
+                            "temperature": 0,
+                            "requiredVariables": []
+                        })
+                    )
+
+                    if response.status_code == 200:
+                        st.success("✅ 업로드 및 분석 완료!")
+                        st.json(response.json())  # 응답 결과 표시
+                    else:
+                        st.error(f"❌ 오류 발생: {response.status_code}")
+
+                except Exception as e:
+                    st.error(f"❌ API 호출 실패: {e}")
+
             st.session_state.show_upload = False
 
     df = get_table_data("SELECT * FROM invoice")
