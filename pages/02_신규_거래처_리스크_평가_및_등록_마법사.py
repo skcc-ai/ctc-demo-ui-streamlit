@@ -1,39 +1,92 @@
 import streamlit as st
+import time
+import requests
+import json
+import os
+from azure.storage.blob import BlobServiceClient
+
+conn_str = os.environ.get("AZURE_CONNECTION_STRING")
+
+def upload_file_to_blob(uploaded_file):
+    if not conn_str:
+        return uploaded_file.name # Fallback
+    blob_service_client = BlobServiceClient.from_connection_string(conn_str)
+    # Using 'invoice-docs' container as referenced in other pages
+    blob_client = blob_service_client.get_blob_client(container="invoice-docs", blob=uploaded_file.name)
+    blob_client.upload_blob(uploaded_file.getvalue(), overwrite=True)
+    return uploaded_file.name
+
 
 st.set_page_config(
-    page_title="streamlit-folium documentation: Draw Support",
-    page_icon=":pencil:",
+    page_title="신규 거래처 리스크 평가 및 등록 마법사",
+    page_icon="🏢",
     layout="wide",
 )
 
-"""
-# streamlit-folium: Draw Support
+st.title("신규 거래처 리스크 평가 및 등록 마법사")
 
-Folium supports some of the [most popular leaflet
-plugins](https://python-visualization.github.io/folium/plugins.html). In this example,
-we can add the
-[`Draw`](https://python-visualization.github.io/folium/plugins.html#folium.plugins.Draw)
-plugin to our map, which allows for drawing geometric shapes on the map.
+st.markdown("""
+이 마법사는 신규 거래처 등록 전, 명함이나 사업자등록증 등을 통해 **기본 정보를 추출**하고, 
+입력해주신 **상황 설명**을 종합하여 당사와의 거래에 있어 **잠재적 리스크를 평가**합니다.
+""")
 
-When a shape is drawn on the map, the coordinates that represent that shape are passed
-back as a geojson feature via the `all_drawings` and `last_active_drawing` data fields.
+st.subheader("1. 증빙 서류 업로드")
+uploaded_file = st.file_uploader("명함 또는 사업자등록증 이미지 파일 업로드", type=["png", "jpg", "jpeg", "pdf"])
 
-Draw something below to see the return value back to Streamlit!
-"""
+st.subheader("2. 상황 설명 입력")
+situation_description = st.text_area("거래를 진행하게 된 배경, 거래처의 주요 특징, 우려되는 점 등 상황 설명을 자유롭게 입력해주세요.", height=150)
 
-with st.echo(code_location="below"):
-    import folium
-    import streamlit as st
-    from folium.plugins import Draw
+if st.button("리스크 평가 분석 시작", type="primary"):
+    if not uploaded_file and not situation_description:
+        st.warning("증빙 서류를 업로드하거나 상황 설명을 입력해주세요.")
+    else:
+        with st.spinner("AI가 증빙 서류와 상황 설명을 분석 중입니다..."):
+            try:
+                # 1. 파일 업로드
+                file_path = upload_file_to_blob(uploaded_file)
+                
+                # 2. API 호출
+                app_id = "TExNQXBwOjY5OTQyM2M0ZjgyNTQ2MTVkM2RhYzMxYg=="
+                api_key = "SUKYXKTTRPYVAHHOFTSWQYWS3QFSONQJYA"
+                api_url = f"https://backend.alli.ai/webapi/apps/{app_id}/run"
+                
+                payload = {
+                    "chat": {
+                        "message": situation_description
+                    },
+                    "inputs": {
+                        "file_path": file_path,
+                        "file_name": uploaded_file.name
+                    },
+                    "mode": "sync"
+                }
 
-    from streamlit_folium import st_folium
+                headers = {
+                    "Content-Type": "application/json",
+                    "API-KEY": api_key
+                }
 
-    m = folium.Map(location=[39.949610, -75.150282], zoom_start=5)
-    Draw(export=True).add_to(m)
+                response = requests.post(api_url, json=payload, headers=headers)
+                response.raise_for_status()
+                result_data = response.json()
+                
+                # 봇 응답 메시지 추출
+                bot_message = ""
+                responses = result_data.get("result", {}).get("responses", [])
+                for resp in responses:
+                    if resp.get("sender") == "BOT":
+                        bot_message += resp.get("message", "") + "\\n\\n"
+                        
+            except Exception as e:
+                bot_message = f"❌ API 호출 중 오류가 발생했습니다: {str(e)}"
 
-    c1, c2 = st.columns(2)
-    with c1:
-        output = st_folium(m, width=700, height=500)
-
-    with c2:
-        st.write(output)
+        st.success("리스크 평가 분석이 완료되었습니다.")
+        
+        # 분석 결과 표시
+        st.subheader("분석 결과 보고서")
+        st.markdown("### 🤖 AI 분석 결과")
+        if bot_message.strip():
+            st.markdown(bot_message)
+        else:
+            with st.expander("API Raw Response"):
+                st.json(result_data)

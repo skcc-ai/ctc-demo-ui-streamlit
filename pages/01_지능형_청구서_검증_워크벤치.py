@@ -5,7 +5,9 @@ from azure.storage.blob import BlobServiceClient
 import fitz  # pymupdf
 import os
 
-conn_str = os.environ.get("AZURE_CONNECTION_STRING")
+conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+if conn_str is None: conn_str = os.environ.get("AZURE_CONNECTION_STRING")
+
 
 def get_pdf_from_blob(pdf_path):
     connection_string = conn_str
@@ -22,6 +24,13 @@ def display_pdf(pdf_bytes):
         pix = page.get_pixmap(matrix=mat)
         img_bytes = pix.tobytes("png")
         st.image(img_bytes, use_container_width=True, caption=f"Page {page_num + 1}")
+
+def upload_pdf_to_blob(uploaded_file):
+    connection_string = conn_str
+    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+    blob_client = blob_service_client.get_blob_client(container="invoice-docs", blob=uploaded_file.name)
+    blob_client.upload_blob(uploaded_file.getvalue(), overwrite=True)
+    return uploaded_file.name
 
 def highlight_discrepancy(row):
     if row["match_result"] == "MATCHED":
@@ -221,37 +230,44 @@ elif sub == "청구서 검증 요청 현황":
                     try:
                         import json
                         import requests
-                        response = requests.post(
-                            "https://backend.alli.ai/webapi/apps/TExNQXBwOjY5OTU1Yjk4ZDY1ODkzOGM1YmVkYzliMQ==/run",
-                            headers={
-                                "API-KEY": "SUKYXKTTRPYVAHHOFTSWQYWS3QFSONQJYA",
-                                "Content-Type": "application/json"
-                            },
-                            data=json.dumps({
-                                "chat": {
-                                    "message": uploaded_file.name,
-                                    "source": {
-                                        "knowledgeBaseIds": [],
-                                        "folderIds": [],
-                                        "webSites": []
-                                    }
-                                },
-                                "inputs": {"ANY_ADDITIONAL_PROPERTY": "anything"},
-                                "mode": "sync",
-                                "isStateful": False,
-                                "conversationId": "",
-                                "llmModel": "",
-                                "llmPromptId": "",
-                                "gaPromptGroupId": "",
-                                "temperature": 0,
-                                "requiredVariables": []
-                            })
-                        )
-                        if response.status_code == 200:
-                            st.success("✅ 업로드 및 분석 완료!")
-                            st.json(response.json())
-                        else:
-                            st.error(f"❌ 오류 발생: {response.status_code}")
+
+                        # 1. Azure Blob Storage 업로드
+                        file_path = upload_pdf_to_blob(uploaded_file)
+                        st.subheader(file_path)
+
+                        # # 2. API 호출 (file_path 파라미터 포함)
+                        # response = requests.post(
+                        #     "https://backend.alli.ai/webapi/apps/TExNQXBwOjY5OTU1Yjk4ZDY1ODkzOGM1YmVkYzliMQ==/run",
+                        #     headers={
+                        #         "API-KEY": "SUKYXKTTRPYVAHHOFTSWQYWS3QFSONQJYA",
+                        #         "Content-Type": "application/json"
+                        #     },
+                        #     data=json.dumps({
+                        #         "chat": {
+                        #             "message": uploaded_file.name,
+                        #             "source": {
+                        #                 "knowledgeBaseIds": [],
+                        #                 "folderIds": [],
+                        #                 "webSites": []
+                        #             }
+                        #         },
+                        #         "inputs": {"file_path": file_path},
+                        #         "mode": "sync",
+                        #         "isStateful": False,
+                        #         "conversationId": "",
+                        #         "llmModel": "",
+                        #         "llmPromptId": "",
+                        #         "gaPromptGroupId": "",
+                        #         "temperature": 0,
+                        #         "requiredVariables": []
+                        #     })
+                        # )
+                        #
+                        # if response.status_code == 200:
+                        #     st.success("✅ 업로드 및 분석 완료!")
+                        #     st.json(response.json())
+                        # else:
+                        #     st.error(f"❌ 오류 발생: {response.status_code}")
                     except Exception as e:
                         st.error(f"❌ API 호출 실패: {e}")
                 st.session_state.show_upload = False
