@@ -5,7 +5,9 @@ from azure.storage.blob import BlobServiceClient
 import fitz  # pymupdf
 import os
 
-conn_str = os.environ.get("AZURE_CONNECTION_STRING")
+conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+if conn_str is None: conn_str = os.environ.get("AZURE_CONNECTION_STRING")
+
 
 def get_pdf_from_blob(pdf_path):
     connection_string = conn_str
