@@ -4,3 +4,5 @@ requests
 geopandas
 pandas
 psycopg2-binary
+azure-storage-blob
+pymupdf
