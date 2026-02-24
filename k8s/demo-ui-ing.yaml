@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-ui-ingress
+  namespace: demo-ui
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/appgw-ssl-certificate: skax.co.kr_cert
+    appgw.ingress.kubernetes.io/backend-path-prefix: /demo-ui
+    appgw.ingress.kubernetes.io/health-probe-path: /demo-ui
+    appgw.ingress.kubernetes.io/health-probe-status-codes: 200-399
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  rules:
+  - host: ctc-dify-stg.skax.co.kr
+    http:
+      paths:
+      - path: /demo-ui
+        pathType: Prefix
+        backend:
+          service:
+            name: demo-ui-service
+            port:
+              number: 80
