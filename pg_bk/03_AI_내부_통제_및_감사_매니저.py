@@ -22,9 +22,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ページ設定
+# 페이지 설정
 st.set_page_config(
-    page_title="法人カード精算審査システム",
+    page_title="법인카드 정산 검토 시스템",
     page_icon="💳",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -130,7 +130,7 @@ RECEIPT_DATA_DIR = Path(__file__).parent / "data"
 # ============================================================================
 
 def get_db_connection():
-    """PostgreSQL データベース接続"""
+    """PostgreSQL 데이터베이스 연결"""
     try:
         conn = psycopg2.connect(
             host=DB_CONFIG['host'],
@@ -142,12 +142,12 @@ def get_db_connection():
         )
         return conn
     except Exception as e:
-        st.error(f"データベース接続エラー: {str(e)}")
+        st.error(f"데이터베이스 연결 오류: {str(e)}")
         return None
 
 
 def get_expense_list():
-    """法人カード精算一覧照会（DB から全件取得）"""
+    """법인카드 정산 목록 조회 (DB에서 전체 목록 가져오기)"""
     conn = get_db_connection()
     if conn is None:
         return []
@@ -178,20 +178,20 @@ def get_expense_list():
             
             return expenses
     except Exception as e:
-        st.error(f"データ取得エラー: {str(e)}")
+        st.error(f"데이터 조회 오류: {str(e)}")
         return []
     finally:
         conn.close()
 
 
 def get_violations(expense_id: str) -> list:
-    """violations テーブルから該当精算 ID の違反項目を取得
+    """violations 테이블에서 해당 정산 ID의 위반 항목 조회
     
     Args:
-        expense_id: 精算 ID
+        expense_id: 정산 ID
     
     Returns:
-        違反項目のリスト
+        위반 항목 리스트
     """
     conn = get_db_connection()
     if conn is None:
@@ -219,20 +219,20 @@ def get_violations(expense_id: str) -> list:
             
             return violations
     except Exception as e:
-        st.error(f"違反項目の取得エラー: {str(e)}")
+        st.error(f"위반 항목 조회 오류: {str(e)}")
         return []
     finally:
         conn.close()
 
 
 def get_expense_detail(expense_id: str) -> Dict[str, Any]:
-    """特定精算 ID の詳細情報を取得
+    """특정 정산 ID의 상세 정보 조회
     
     Args:
-        expense_id: 精算 ID
+        expense_id: 정산 ID
     
     Returns:
-        精算詳細情報のディクショナリ
+        정산 상세 정보 딕셔너리
     """
     conn = get_db_connection()
     if conn is None:
@@ -260,41 +260,41 @@ def get_expense_detail(expense_id: str) -> Dict[str, Any]:
             else:
                 return None
     except Exception as e:
-        st.error(f"精算詳細の取得エラー: {str(e)}")
+        st.error(f"정산 상세 조회 오류: {str(e)}")
         return None
     finally:
         conn.close()
 
 
 def get_receipt_path(expense_id: str) -> str:
-    """精算 ID に対応する領収書 PNG ファイルパスを取得
+    """정산 ID에 해당하는 영수증 PNG 파일 경로 가져오기
     
     Args:
-        expense_id: 精算 ID
+        expense_id: 정산 ID
     
     Returns:
-        領収書 PNG ファイルの絶対パス（文字列）
+        영수증 PNG 파일의 절대 경로 (문자열)
     """
     png_path = RECEIPT_DATA_DIR / f"{expense_id}.png"
     
     if png_path.exists():
         return str(png_path)
     else:
-        # ファイルがない場合は None を返す
-        st.warning(f"領収書ファイルが見つかりません: {expense_id}.png")
+        # 파일이 없으면 None 반환
+        st.warning(f"영수증 파일을 찾을 수 없습니다: {expense_id}.png")
         return None
 
 
 def display_png(file_path: str):
-    """PNG ファイルを画像として表示
+    """PNG 파일을 이미지로 표시
     
     Args:
-        file_path: PNG ファイルパス
+        file_path: PNG 파일 경로
     """
     if file_path and Path(file_path).exists():
         st.image(file_path, use_container_width=True)
     else:
-        st.error("領収書ファイルが見つかりません。")
+        st.error("영수증 파일을 찾을 수 없습니다.")
 
 
 def extract_bot_message(json_data: Dict[str, Any]) -> str:
@@ -433,7 +433,7 @@ def _extract_conversation_id(
     response_data: Dict[str, Any],
     expense_id: str
 ) -> str:
-    """応答から conversation ID を抽出"""
+    """응답에서 conversation ID 추출"""
     try:
         result = response_data.get('result', {})
         conversation = result.get('conversation', {})
@@ -453,7 +453,7 @@ def _extract_conversation_id(
         else:
             logger.warning(
                 f"[Conversation ID 추출 실패] "
-                f"응답에서 conversation ID를 찾을 수 없습니다. "
+                f"응답에서 conversation ID를 찾을 수 없음. "
                 f"응답: {json.dumps(response_data, ensure_ascii=False)[:500]}..."
             )
             return ""
@@ -468,14 +468,16 @@ def _extract_conversation_id(
 def call_audit_agent(expense_id: str) -> str:
     """감사 에이전트 호출 (동기 방식)
     
-    1차 호출: message와 conversationId를 비운 상태로 보내 conversation ID만 확보합니다.
-    2차 호출: 확보한 conversation ID를 사용해 expense_id를 message로 전송하고,
-    그 응답에서 BOT 메시지를 반환합니다.
+    첫 호출: message와 conversationId를 빈 값으로 보내고,
+    conversation ID만 추출 (응답은 표시하지 않음)
     
-    두 번의 호출이 완료되면 더 이상 호출하지 않습니다.
+    두 번째 호출: conversation ID를 사용하여 expense_id를 메시지로 전송,
+    이 응답부터 봇 메시지를 반환
+    
+    두 번의 호출이 완료되면 더 이상 호출하지 않음
     
     Returns:
-        str: BOT 메시지들을 합친 문자열
+        str: 봇 메시지들을 합친 문자열
     """
     # 반복 호출 방지: 이미 호출 중이면 중단
     if st.session_state.api_call_in_progress.get(expense_id, False):
@@ -483,7 +485,7 @@ def call_audit_agent(expense_id: str) -> str:
             f"[호출 중단] expense_id: {expense_id}, "
             f"이미 호출이 진행 중입니다."
         )
-        return "⏳ すでに呼び出しが進行中です。しばらくお待ちください。"
+        return "⏳ 이미 호출이 진행 중입니다. 잠시만 기다려주세요."
     
     # 호출 시작 시 이전 플래그 리셋 (재호출 허용)
     if expense_id in st.session_state.conversation_init_failed:
@@ -501,8 +503,8 @@ def call_audit_agent(expense_id: str) -> str:
         # 첫 호출: conversation ID가 없으면 먼저 conversation ID 획득
         if not conversation_id:
             logger.info(
-                f"[1回目呼び出し] expense_id: {expense_id}, "
-                f"message: 空, conversationId: 空"
+                f"[첫 호출] expense_id: {expense_id}, "
+                f"message: 빈 값, conversationId: 빈 값"
             )
             
             try:
@@ -514,8 +516,8 @@ def call_audit_agent(expense_id: str) -> str:
                     response_data, ensure_ascii=False
                 )[:1000]
                 logger.info(
-                    f"[1回目応答] expense_id: {expense_id}, "
-                    f"レスポンス: {response_str}..."
+                    f"[첫 호출 응답] expense_id: {expense_id}, "
+                    f"응답: {response_str}..."
                 )
                 
                 # Conversation ID 추출
@@ -531,13 +533,13 @@ def call_audit_agent(expense_id: str) -> str:
                         response_data, ensure_ascii=False
                     )
                     logger.error(
-                        f"[1回目失敗] expense_id: {expense_id}, "
-                        f"Conversation ID を取得できませんでした。 "
-                        f"全レスポンス: {response_str}"
+                        f"[첫 호출 실패] expense_id: {expense_id}, "
+                        f"Conversation ID를 얻지 못함. "
+                        f"전체 응답: {response_str}"
                     )
                     error_msg = (
-                        "❌ Conversation ID を取得できませんでした。"
-                        "レスポンスを確認してください."
+                        "❌ Conversation ID를 얻지 못했습니다. "
+                        "응답을 확인하세요."
                     )
                     # 플래그 해제
                     st.session_state.api_call_in_progress[expense_id] = False
@@ -552,17 +554,17 @@ def call_audit_agent(expense_id: str) -> str:
                 # 실패 플래그 설정
                 st.session_state.conversation_init_failed[expense_id] = True
                 logger.error(
-                    f"[1回目エラー] expense_id: {expense_id}, "
-                    f"エラー: {str(e)}"
+                    f"[첫 호출 오류] expense_id: {expense_id}, "
+                    f"오류: {str(e)}"
                 )
-                error_msg = f"❌ 1回目呼び出しエラー: {str(e)}"
+                error_msg = f"❌ 첫 호출 오류: {str(e)}"
                 # 플래그 해제
                 st.session_state.api_call_in_progress[expense_id] = False
                 return error_msg
         
         # 두 번째 호출: conversation ID를 사용하여 expense_id를 메시지로 전송
         logger.info(
-            f"[2回目呼び出し] expense_id: {expense_id}, "
+            f"[두 번째 호출] expense_id: {expense_id}, "
             f"message: {expense_id}, "
             f"conversationId: {conversation_id[:50]}..."
         )
@@ -570,17 +572,17 @@ def call_audit_agent(expense_id: str) -> str:
         # 두 번째 호출: conversation ID와 expense_id를 메시지로 전송
         response_data = _make_api_call(expense_id, conversation_id, expense_id)
         
-        # 응답 파싱 및 BOT 메시지 추출
+        # 응답 파싱 및 봇 메시지 추출
         logger.info(
-            f"[2回目応答] expense_id: {expense_id}, "
-            f"レスポンス受信完了"
+            f"[두 번째 호출 응답] expense_id: {expense_id}, "
+            f"응답 수신 완료"
         )
         
-        # BOT 메시지 추출
+        # 봇 메시지 추출
         result = response_data.get('result', {})
         responses = result.get('responses', [])
         
-        seen_message_ids = set()  # 중복 메세지 ID 방지
+        seen_message_ids = set()  # 중복 메시지 ID 방지
         bot_messages = []
         last_bot_message = None
         
@@ -590,7 +592,7 @@ def call_audit_agent(expense_id: str) -> str:
                 last_bot_message = resp.get('message', '')
                 break
         
-        # 모든 BOT 메세지 수집
+        # 모든 BOT 메시지 수집
         for resp in responses:
             if resp.get('sender') == 'BOT':
                 msg_id = resp.get('id', '')
@@ -601,13 +603,13 @@ def call_audit_agent(expense_id: str) -> str:
                     bot_messages.append(message)
                     
                     logger.info(
-                        f"[BOT メッセージ検出] ID: {msg_id}, "
-                        f"メッセージ: {message[:100]}..."
+                        f"[봇 메시지 발견] ID: {msg_id}, "
+                        f"메시지: {message[:100]}..."
                     )
         
         logger.info(
-            f"[応答完了] expense_id: {expense_id}, "
-            f"合計 {len(bot_messages)} 件の BOT メッセージ"
+            f"[응답 완료] expense_id: {expense_id}, "
+            f"총 {len(bot_messages)}개 봇 메시지"
         )
         
         # 마지막 메시지에서 위반항목 데이터 추출
@@ -621,9 +623,9 @@ def call_audit_agent(expense_id: str) -> str:
                     start_idx = last_bot_message.find('{"success"')
                 
                 if start_idx != -1:
-                    # ディクショナリ文字列を抽出
+                    # 딕셔너리 문자열 추출
                     dict_str = last_bot_message[start_idx:]
-                    # 閉じカッコを探索
+                    # 닫는 중괄호 찾기
                     brace_count = 0
                     end_idx = -1
                     for i, char in enumerate(dict_str):
@@ -657,14 +659,14 @@ def call_audit_agent(expense_id: str) -> str:
                 'rows': violation_data.get('rows', [])
             }
         
-        # BOT 메세지를 하나의 문자열로 결합
+        # 봇 메시지를 문자열로 합치기
         result_text = "\n".join(bot_messages)
         
-        # 완료 메세지 추가
+        # 완료 메시지 추가
         if bot_messages:
-            result_text += "\n\n✅ 応答完了"
+            result_text += "\n\n✅ 응답 완료"
         else:
-            result_text = "✅ 応答完了（BOT メッセージなし）"
+            result_text = "✅ 응답 완료 (봇 메시지 없음)"
         
         # 두 번째 호출 완료 플래그 설정 (재호출 방지)
         st.session_state.api_call_completed[expense_id] = True
@@ -693,11 +695,11 @@ def call_audit_agent(expense_id: str) -> str:
 def call_clarification_request(expense_id: str) -> str:
     """소명 요청 메일 초안 생성 API 호출
     
-    기존 conversation_id를 사용하여 message \"YES\"를 전송하고,
-    응답에서 type이 \"llm\"인 message를 반환합니다.
+    기존 conversation_id를 사용하여 message "YES"를 전송하고,
+    응답에서 type이 "llm"인 message를 반환합니다.
     
     Returns:
-        str: 메일 초안 내용 (type이 \"llm\"인 message)
+        str: 메일 초안 내용 (type이 "llm"인 message)
     """
     # Conversation ID 조회
     conversation_id = st.session_state.conversation_ids.get(expense_id, "")
@@ -710,7 +712,7 @@ def call_clarification_request(expense_id: str) -> str:
         return ""
     
     try:
-        # API 호출: message를 \"YES\"로 전송
+        # API 호출: message를 "YES"로 전송
         logger.info(
             f"[소명 요청 호출] expense_id: {expense_id}, "
             f"message: YES, conversationId: {conversation_id[:50]}..."
@@ -718,7 +720,7 @@ def call_clarification_request(expense_id: str) -> str:
         
         response_data = _make_api_call("YES", conversation_id, expense_id)
         
-        # 응답에서 type이 \"llm\"인 message를 추출
+        # 응답에서 type이 "llm"인 message 추출
         result = response_data.get('result', {})
         responses = result.get('responses', [])
         
@@ -746,9 +748,9 @@ def call_clarification_request(expense_id: str) -> str:
 
 
 def get_audit_result(expense_id: str, stream_content: str = "") -> Dict[str, Any]:
-    """監査エージェント最終結果の取得
+    """감사 에이전트 최종 결과 조회
     
-    ストリーム応答から最終結果をパースして返します。
+    스트림 응답에서 최종 결과를 파싱하여 반환합니다.
     """
     try:
         # 스트림 내용에서 JSON 데이터 추출 시도
@@ -756,9 +758,9 @@ def get_audit_result(expense_id: str, stream_content: str = "") -> Dict[str, Any
         bot_message_text = ""
         
         if stream_content:
-            # JSON 形式のデータ探索
+            # JSON 형식의 데이터 찾기
             try:
-                # 最後の完全な JSON オブジェクトを探す
+                # 마지막 완전한 JSON 객체 찾기
                 lines = stream_content.split('\n')
                 for line in reversed(lines):
                     line_stripped = line.strip()
@@ -766,7 +768,7 @@ def get_audit_result(expense_id: str, stream_content: str = "") -> Dict[str, Any
                             line_stripped.startswith('[')):
                         try:
                             result_data = json.loads(line_stripped)
-                            # BOT メッセージ抽出
+                            # 봇 메시지 추출
                             bot_message_text = extract_bot_message(result_data)
                             break
                         except json.JSONDecodeError:
@@ -774,8 +776,8 @@ def get_audit_result(expense_id: str, stream_content: str = "") -> Dict[str, Any
             except Exception:
                 pass
         
-        # API 応答から結果を抽出し構造化
-        # 実際の API 応答形式に合わせて調整が必要
+        # API 응답에서 결과 추출 및 구조화
+        # 응답 구조에 맞게 조정 필요 (실제 API 응답 형식에 따라 수정)
         return {
             "expense_id": expense_id,
             "expense_details": result_data.get('expense_details', {}),
@@ -786,23 +788,100 @@ def get_audit_result(expense_id: str, stream_content: str = "") -> Dict[str, Any
             "rejection_email_draft": result_data.get(
                 'rejection_email_draft', ''
             ),
-            "api_response": result_data,  # 全応答も含む
-            "stream_content": stream_content,  # ストリーム全体
-            "bot_message": bot_message_text  # BOT メッセージ
+            "api_response": result_data,  # 전체 응답도 포함
+            "stream_content": stream_content,  # 스트림 전체 내용
+            "bot_message": bot_message_text  # 봇 메시지
         }
     except Exception as e:
-        st.error(f"結果処理エラー: {str(e)}")
-        # エラー時は空データを返す
-        st.warning("結果処理中にエラーが発生しました。")
+        st.error(f"결과 처리 오류: {str(e)}")
+        # 오류 발생 시 목업 데이터 반환
+        st.warning("결과 처리 중 오류가 발생하여 목업 데이터를 표시합니다.")
+        return get_mock_audit_result(expense_id)
+
+
+def get_mock_audit_result(expense_id: str) -> Dict[str, Any]:
+    """목업: 감사 에이전트 최종 결과 (백업용)"""
+    return {
+        "expense_id": expense_id,
+        "expense_details": {
+            "user_name": "홍길동",
+            "amount": 245000,
+            "business_name": "서울 비즈니스 호텔",
+            "business_type": "숙박",
+            "payment_datetime": "2024-02-10",
+            "attendees_count": 1,
+            "card_type": "법인카드"
+        },
+        "analysis": {
+            "compliance_status": "적합",
+            "findings": [
+                "✅ 영수증 금액과 신청 금액 일치",
+                "✅ 출장 신청서와 날짜 일치",
+                "✅ 숙박비 상한액 내 지출 (1박당 300,000원 이하)",
+                "✅ 영수증 이미지 품질 양호",
+                ("⚠️ 참고: 호텔 등급이 비교적 높은 편이나 "
+                 "규정 내 범위임")
+            ],
+            "recommendation": "승인",
+            "risk_level": "낮음",
+            "confidence": 0.95
+        },
+        "receipt_image_url": "sample.png",
+        "rejection_email_draft": """
+제목: [법인카드 정산 반려] {expense_id} - {business_name}
+
+{user_name}님께,
+
+안녕하세요. 경영지원팀입니다.
+
+제출하신 법인카드 정산 건({expense_id})을 검토한 결과, 다음과 같은 사유로 반려 처리되었습니다:
+
+[반려 사유]
+- (여기에 반려 사유가 표시됩니다)
+
+정산을 다시 제출하시려면 아래 사항을 확인해 주시기 바랍니다:
+1. 영수증 이미지의 명확성 확인
+2. 정산 금액과 영수증 금액 일치 여부
+3. 사내 정산 규정 준수 여부
+
+문의사항이 있으시면 경영지원팀으로 연락 주시기 바랍니다.
+
+감사합니다.
+"""
+    }
+
+
+def call_process_agent(
+    expense_id: str,
+    decision: str,
+    email_confirmed: bool = False
+) -> Dict[str, Any]:
+    """목업: 정산 처리 에이전트 호출
+
+    실제 연동 시:
+    - 정산 처리 에이전트 호출
+    - 승인/반려 처리 및 메일 발송
+    """
+    time.sleep(1)  # API 호출 시뮬레이션
+    
+    if decision == "승인":
         return {
+            "success": True,
             "expense_id": expense_id,
-            "expense_details": {},
-            "analysis": {},
-            "receipt_image_url": "",
-            "rejection_email_draft": "",
-            "api_response": {},
-            "stream_content": stream_content,
-            "bot_message": ""
+            "decision": decision,
+            "message": "정산이 승인되었습니다.",
+            "processed_at": datetime.now().isoformat(),
+            "notification_sent": True
+        }
+    else:  # 반려
+        return {
+            "success": True,
+            "expense_id": expense_id,
+            "decision": decision,
+            "message": "정산이 반려되었습니다.",
+            "processed_at": datetime.now().isoformat(),
+            "email_sent": email_confirmed,
+            "notification_sent": True
         }
 
 
@@ -864,46 +943,46 @@ if 'mail_sent' not in st.session_state:
 # ============================================================================
 
 def show_expense_list():
-    """法人カード精算一覧画面"""
-    st.markdown('<p class="main-header">💳 法人カード精算審査システム</p>', unsafe_allow_html=True)
+    """법인카드 정산 목록 화면"""
+    st.markdown('<p class="main-header">💳 법인카드 정산 검토 시스템</p>', unsafe_allow_html=True)
     
-    # 更新ボタン
+    # 새로고침 버튼
     col1, col2 = st.columns([6, 1])
     with col2:
-        if st.button("🔄 再読み込み"):
+        if st.button("🔄 새로고침"):
             st.rerun()
     
     st.markdown("---")
     
-    # 精算一覧取得（DB から取得）
+    # 정산 목록 조회 (DB에서 조회)
     expenses = get_expense_list()
     
-    # 統計情報
-    st.markdown("### 📊 審査待ち状況")
+    # 통계 정보
+    st.markdown("### 📊 검토 대기 현황")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("件数（合計）", len(expenses))
+        st.metric("전체 건수", len(expenses))
     with col2:
         total_amount = sum(exp['amount'] for exp in expenses)
-        st.metric("金額合計", f"{total_amount:,}円")
+        st.metric("총 금액", f"{total_amount:,}원")
     with col3:
-        st.metric("平均金額", f"{int(total_amount/len(expenses)):,}円")
+        st.metric("평균 금액", f"{int(total_amount/len(expenses)):,}원")
     with col4:
-        st.metric("待機期間", "1〜5日")
+        st.metric("대기 기간", "1-5일")
     
     st.markdown("---")
-    st.markdown("### 📋 精算一覧")
+    st.markdown("### 📋 정산 목록")
     
-    # 精算 ID を短縮表示する関数
+    # 정산 ID를 줄여서 표시하는 함수
     def truncate_id(expense_id: str, max_length: int = 8) -> str:
-        """精算 ID を一部だけ表示し … で省略する"""
+        """정산 ID를 일부만 표시하고 ...으로 줄임"""
         if not expense_id:
             return ''
         if len(expense_id) <= max_length:
             return expense_id
         return expense_id[:max_length] + '...'
     
-    # 精算一覧をテーブル表示
+    # 정산 목록을 테이블로 표시
     st.markdown("""
     <style>
     .dataframe {
@@ -936,23 +1015,23 @@ def show_expense_list():
     </style>
     """, unsafe_allow_html=True)
     
-    # テーブルデータ準備（精算 ID はフル表示）
+    # 테이블 데이터 준비 (정산 ID는 전체 표시)
     table_data = []
     for expense in expenses:
         expense_id = expense.get('id', '')
         table_data.append({
-            "精算 ID": expense_id,
-            "申請者": expense.get('user_name', ''),
-            "加盟店": expense.get('business_name', ''),
-            "分類": expense.get('business_type', ''),
-            "金額": f"{expense.get('amount', 0):,}円",
-            "利用日": expense.get('payment_datetime', '')
+            "정산 ID": expense_id,
+            "신청자": expense.get('user_name', ''),
+            "가맹점": expense.get('business_name', ''),
+            "분류": expense.get('business_type', ''),
+            "금액": f"{expense.get('amount', 0):,}원",
+            "사용일": expense.get('payment_datetime', '')
         })
     
-    # データフレーム生成
+    # 데이터프레임 생성
     df = pd.DataFrame(table_data)
     
-    # テーブル表示（行選択可能）
+    # 테이블 표시 (행 선택 가능)
     event = st.dataframe(
         df,
         use_container_width=True,
@@ -962,16 +1041,16 @@ def show_expense_list():
         selection_mode="single-row"
     )
     
-    # 行が選択されているか確認
+    # 행이 선택되었는지 확인
     if len(event.selection.rows) > 0:
         selected_row_idx = event.selection.rows[0]
         if selected_row_idx < len(expenses):
             expense_id = expenses[selected_row_idx].get('id', '')
             st.session_state.selected_expense_id = expense_id
             st.session_state.show_review_dialog = True
-            # 審査完了フラグは expense_id ごとに管理するためここではリセットしない
+            # 검토 완료 플래그는 expense_id별로 관리하므로 여기서는 리셋하지 않음
     
-    # 詳細審査ダイアログ
+    # 상세 검토 다이얼로그
     if st.session_state.get('show_review_dialog', False):
         selected_id = st.session_state.selected_expense_id
         show_review_dialog(selected_id)
@@ -981,19 +1060,19 @@ def show_expense_list():
 # 다이얼로그: 검토 진행 상황
 # ============================================================================
 
-@st.dialog("🔍 精算詳細審査", width="large")
+@st.dialog("🔍 정산 상세 검토", width="large")
 def show_review_dialog(expense_id: str):
-    """審査進捗をダイアログで表示"""
+    """검토 진행 상황을 다이얼로그로 표시"""
     
-    st.markdown(f"### 精算 ID: {expense_id}")
+    st.markdown(f"### 정산 ID: {expense_id}")
     st.markdown("---")
     
-    # 審査進捗表示
+    # 검토 진행 상황 표시
     review_complete = st.session_state.review_complete.get(expense_id, False)
     
     if not review_complete:
-        # API 呼び出しと結果受信（スピナー表示）
-        with st.spinner("🤖 AI 監査エージェント分析中..."):
+        # API 호출 및 결과 수신 (스피너 표시)
+        with st.spinner("🤖 AI 감사 에이전트 분석 중..."):
             try:
                 result_content = call_audit_agent(expense_id)
                 
@@ -1001,25 +1080,24 @@ def show_review_dialog(expense_id: str):
                 st.session_state.audit_result = get_audit_result(
                     expense_id, result_content
                 )
-                # 審査完了フラグ設定（expense_id ごと）
+                # 검토 완료 플래그 설정 (expense_id별)
                 st.session_state.review_complete[expense_id] = True
             except Exception as e:
-                st.error(f"処理エラー: {str(e)}")
-                # エラー発生時は空の結果を設定
-                st.session_state.audit_result = get_audit_result(
-                    expense_id, ""
-                )
+                st.error(f"처리 오류: {str(e)}")
+                # 오류 발생 시 목업 데이터 사용
+                audit_result = get_mock_audit_result(expense_id)
+                st.session_state.audit_result = audit_result
                 st.session_state.review_complete[expense_id] = True
                 st.rerun()
     
-    # 審査完了後はボタンのみ表示
+    # 검토 완료 후 버튼만 표시
     if st.session_state.review_complete.get(expense_id, False):
-        st.success("✅ 審査が完了しました。")
+        st.success("✅ 검토가 완료되었습니다!")
         
         col1, col2 = st.columns(2)
         with col1:
             if st.button(
-                "📊 詳細結果を見る",
+                "📊 상세 결과 보기",
                 key=f"detail_btn_{expense_id}",
                 use_container_width=True
             ):
@@ -1030,12 +1108,12 @@ def show_review_dialog(expense_id: str):
         
         with col2:
             if st.button(
-                "❌ 閉じる",
+                "❌ 닫기",
                 key=f"close_btn_{expense_id}",
                 use_container_width=True
             ):
                 st.session_state.show_review_dialog = False
-                # 審査完了フラグは expense_id ごとに管理するためここではリセットしない
+                # 검토 완료 플래그는 expense_id별로 관리하므로 여기서는 리셋하지 않음
                 st.rerun()
 
 
@@ -1044,11 +1122,11 @@ def show_review_dialog(expense_id: str):
 # ============================================================================
 
 def show_expense_detail():
-    """精算詳細審査結果画面（ダイアログで「詳細結果を見る」クリック時）"""
+    """정산 상세 검토 결과 화면 (다이얼로그에서 '상세 결과 보기' 클릭 시)"""
     expense_id = st.session_state.selected_expense_id
     
-    # 戻るボタン
-    if st.button("⬅️ 一覧に戻る"):
+    # 뒤로가기 버튼
+    if st.button("⬅️ 목록으로 돌아가기"):
         st.session_state.page = 'list'
         st.session_state.selected_expense_id = None
         st.session_state.stream_complete = False
@@ -1056,67 +1134,67 @@ def show_expense_detail():
         # review_complete는 expense_id별로 관리하므로 여기서는 리셋하지 않음
         st.rerun()
     
-    header_html = f'<p class="main-header">📊 詳細審査結果: {expense_id}</p>'
+    header_html = f'<p class="main-header">📊 상세 검토 결과: {expense_id}</p>'
     st.markdown(header_html, unsafe_allow_html=True)
     st.markdown("---")
     
-    # DB から実際の精算情報を取得
+    # DB에서 실제 정산 정보 조회
     expense_data = get_expense_detail(expense_id)
     
     if not expense_data:
-        st.error("精算情報が見つかりません。")
+        st.error("정산 정보를 찾을 수 없습니다.")
         return
     
-    # 審査結果表示（すでに完了済み）
+    # 검토 결과 표시 (이미 완료된 상태)
     if st.session_state.audit_result:
-        st.success("✅ 審査が完了しました。")
+        st.success("✅ 검토가 완료되었습니다!")
         st.markdown("---")
         
-        # 2カラムレイアウト: 精算情報 | 領収書
+        # 2단 레이아웃: 정산 정보 | 영수증
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            st.markdown("### 📄 精算情報")
+            st.markdown("### 📄 정산 정보")
             st.markdown(f"""
-            **精算 ID:** {expense_data.get('id', '')}  
-            **申請者:** {expense_data.get('user_name', '')}  
-            **金額:** {expense_data.get('amount', 0):,}円  
-            **加盟店:** {expense_data.get('business_name', '')}  
-            **分類:** {expense_data.get('business_type', '')}  
-            **利用日:** {expense_data.get('payment_datetime', '')}  
-            **参加者数:** {expense_data.get('attendees_count', 0)}  
-            **カード種別:** {expense_data.get('card_type', '')}
+            **정산 ID:** {expense_data.get('id', '')}  
+            **신청자:** {expense_data.get('user_name', '')}  
+            **금액:** {expense_data.get('amount', 0):,}원  
+            **가맹점:** {expense_data.get('business_name', '')}  
+            **분류:** {expense_data.get('business_type', '')}  
+            **사용일:** {expense_data.get('payment_datetime', '')}  
+            **참석자 수:** {expense_data.get('attendees_count', 0)}  
+            **카드 타입:** {expense_data.get('card_type', '')}
             """)
         
         with col2:
-            st.markdown("### 🧾 領収書")
-            # 精算 ID に対応する PNG ファイルパス取得
+            st.markdown("### 🧾 영수증")
+            # 정산 ID에 해당하는 PNG 파일 경로 가져오기
             receipt_path = get_receipt_path(expense_id)
             if receipt_path:
                 display_png(receipt_path)
             else:
-                st.error("領収書が見つかりません。")
+                st.error("영수증을 찾을 수 없습니다.")
         
         st.markdown("---")
         
-        # 違反項目テーブル
-        st.markdown("### 📋 違反項目")
+        # 위반 항목 표
+        st.markdown("### 📋 위반 항목")
         
-        # DB から違反項目取得
+        # DB에서 위반 항목 조회
         violations = get_violations(expense_id)
         
         if violations:
-            # 表データ準備
+            # 표 데이터 준비
             violation_data = []
             for idx, violation in enumerate(violations, start=1):
                 violation_data.append({
                     "No": idx,
-                    "違反項目": violation['violation_type'],
-                    "内容": violation['description'],
-                    "参照規程": violation['reference']
+                    "위반항목": violation['violation_type'],
+                    "내용": violation['description'],
+                    "참조 규정": violation['reference']
                 })
             
-            # データフレームで表示
+            # 데이터프레임으로 표시
             violation_df = pd.DataFrame(violation_data)
             st.dataframe(
                 violation_df,
@@ -1124,17 +1202,17 @@ def show_expense_detail():
                 hide_index=True
             )
         else:
-            st.info("違反項目はありません。")
+            st.info("위반 항목이 없습니다.")
         
         st.markdown("---")
         
-        # 説明依頼ボタン
-        st.markdown("### ✅ 最終判断")
+        # 소명 요청 버튼
+        st.markdown("### ✅ 최종 결정")
         col1, col2, col3 = st.columns([1, 2, 2])
         
         with col1:
             if st.button(
-                "📝 説明依頼",
+                "📝 소명 요청",
                 key="clarification_btn",
                 use_container_width=True
             ):
@@ -1142,14 +1220,14 @@ def show_expense_detail():
                 st.session_state.clarification_email_draft = None
                 st.rerun()
         
-        # 説明依頼メールポップアップ
+        # 소명 요청 메일 팝업
         if st.session_state.get('show_clarification_popup', False):
             st.markdown("---")
-            st.markdown("### 📧 説明依頼メール")
+            st.markdown("### 📧 소명 요청 메일")
             
-            # メール下書きがなければ API 呼び出し
+            # 메일 초안이 없으면 API 호출
             if st.session_state.get('clarification_email_draft') is None:
-                with st.spinner("メール下書き生成中..."):
+                with st.spinner("메일 초안 생성 중..."):
                     try:
                         email_draft = call_clarification_request(expense_id)
                         if email_draft:
@@ -1157,40 +1235,40 @@ def show_expense_detail():
                                 email_draft
                             )
                         else:
-                            st.error("メール下書きを生成できません。")
+                            st.error("메일 초안을 생성할 수 없습니다.")
                             st.session_state.show_clarification_popup = False
                             st.rerun()
                     except Exception as e:
-                        st.error(f"メール下書き生成エラー: {str(e)}")
+                        st.error(f"메일 초안 생성 오류: {str(e)}")
                         st.session_state.show_clarification_popup = False
                         st.rerun()
             
-            # メール下書き表示
+            # 메일 초안 표시
             clarification_email = st.session_state.get(
                 'clarification_email_draft', ''
             )
             
             st.text_area(
-                "メール内容",
+                "메일 내용",
                 value=clarification_email,
                 height=400,
                 disabled=True
             )
             
-            # 送信完了かどうか確認
+            # 전송 완료 여부 확인
             if st.session_state.get('mail_sent', False):
-                st.success("✅ メール送信が完了しました。")
+                st.success("✅ 메일 전송이 완료되었습니다.")
                 st.markdown("---")
                 
                 col1, col2, col3 = st.columns([1, 1, 3])
                 with col1:
                     confirm_btn = st.button(
-                        "確認",
+                        "확인",
                         key="confirm_mail_sent",
                         use_container_width=True
                     )
                     if confirm_btn:
-                        # 一覧に戻る
+                        # 목록으로 돌아가기
                         st.session_state.page = 'list'
                         st.session_state.selected_expense_id = None
                         st.session_state.stream_complete = False
@@ -1204,53 +1282,53 @@ def show_expense_detail():
                 col1, col2, col3 = st.columns([1, 1, 3])
                 with col1:
                     send_btn = st.button(
-                        "📤 送信",
+                        "📤 전송",
                         key="send_clarification",
                         use_container_width=True
                     )
                     if send_btn:
-                        with st.spinner("メール送信中..."):
+                        with st.spinner("메일 전송 중..."):
                             try:
                                 # Conversation ID 조회
                                 conv_ids = st.session_state.conversation_ids
                                 conversation_id = conv_ids.get(expense_id, "")
                                 
                                 if not conversation_id:
-                                    st.error("Conversation ID がありません。")
+                                    st.error("Conversation ID가 없습니다.")
                                     st.rerun()
                                     return
                                 
-                                # API 呼び出し: message として "YES" を送信
+                                # API 호출: message를 "YES"로 전송
                                 logger.info(
-                                    f"[メール送信呼び出し] expense_id: {expense_id}, "
+                                    f"[메일 전송 호출] expense_id: {expense_id}, "
                                     f"message: YES, conversationId: "
                                     f"{conversation_id[:50]}..."
                                 )
                                 
-                                # 応答のパースは不要、呼び出しのみ実施
+                                # 응답 파싱 불필요, 호출만 수행
                                 _make_api_call(
                                     "YES", conversation_id, expense_id
                                 )
                                 
                                 logger.info(
-                                    f"[メール送信完了] expense_id: {expense_id}, "
-                                    f"応答受信完了"
+                                    f"[메일 전송 완료] expense_id: {expense_id}, "
+                                    f"응답 수신 완료"
                                 )
                                 
-                                # 送信完了フラグ設定
+                                # 전송 완료 플래그 설정
                                 st.session_state.mail_sent = True
                                 st.rerun()
                                 
                             except Exception as e:
                                 logger.error(
-                                    f"[メール送信エラー] expense_id: {expense_id}, "
-                                    f"エラー: {str(e)}"
+                                    f"[메일 전송 오류] expense_id: {expense_id}, "
+                                    f"오류: {str(e)}"
                                 )
-                                st.error(f"メール送信エラー: {str(e)}")
+                                st.error(f"메일 전송 오류: {str(e)}")
                 
                 with col2:
                     cancel_btn = st.button(
-                        "キャンセル",
+                        "취소",
                         key="cancel_clarification",
                         use_container_width=True
                     )
