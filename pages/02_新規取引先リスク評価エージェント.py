@@ -69,11 +69,11 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
                         msg = chat.get("message", "")
                         
                         if ctype == "llm" and "Company_Name" in msg:
-                            add_log("📄 [진행상황] AI 문서 데이터 추출 완료")
+                            add_log("📄 [진행상황] AI 문서 데이터 추출 중...")
                         elif ctype == "llm":
-                            add_log("🧠 [진행상황] AI 거래 상황 및 컨텍스트 분석 완료")
+                            add_log("🧠 [진행상황] AI 거래 상황 및 컨텍스트 분석 중...")
                         elif ctype == "tn":
-                            add_log("🌐 [진행상황] 외부 신용 데이터 연동 및 조회 완료")
+                            add_log("🌐 [진행상황] Master AI가 회사 평가 중...")
             except Exception:
                 pass
                 
