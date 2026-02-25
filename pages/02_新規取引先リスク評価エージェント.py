@@ -233,7 +233,7 @@ if st.session_state.get("eval_status") == "running":
         st.info(f"🚀 リスク評価分析中です...（{elapsed}秒経過）- AIが証明書類と状況説明を分析中です（最大10分所要）")
         
         # 가짜 프로그레스 바 (4배 느리게: 240초 동안 95%까지 차오르다가 대기)
-        progress_val = min(elapsed / 240.0, 0.95)
+        progress_val = min(elapsed / 120.0, 0.95)
         st.progress(progress_val)
         
         st.code("\n".join(st.session_state.eval_logs) if st.session_state.eval_logs else "待機中...", language="plaintext")
