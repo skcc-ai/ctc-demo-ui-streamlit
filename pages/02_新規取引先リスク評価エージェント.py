@@ -224,41 +224,44 @@ if st.button("リスク評価分析を開始", type="primary"):
     t.start()
     st.rerun()
 
-if st.session_state.get("eval_status") == "running":
-    elapsed = int(time.time() - st.session_state.get("eval_start_time", time.time()))
-    
-    st.info(f"🚀 リスク評価分析中です...（{elapsed}秒経過）- AIが証明書類と状況説明を分析中です（最大10分所要）")
-    
-    # 가짜 프로그레스 바 (4배 느리게: 240초 동안 95%까지 차오르다가 대기)
-    progress_val = min(elapsed / 240.0, 0.95)
-    st.progress(progress_val)
-    
-    log_container = st.empty()
-    log_container.code("\n".join(st.session_state.eval_logs) if st.session_state.eval_logs else "待機中...", language="plaintext")
+display_container = st.empty()
 
-    time.sleep(1)
-    st.rerun()
+if st.session_state.get("eval_status") == "running":
+    with display_container.container():
+        elapsed = int(time.time() - st.session_state.get("eval_start_time", time.time()))
+        
+        st.info(f"🚀 リスク評価分析中です...（{elapsed}秒経過）- AIが証明書類と状況説明を分析中です（最大10分所要）")
+        
+        # 가짜 프로그레스 바 (4배 느리게: 240초 동안 95%까지 차오르다가 대기)
+        progress_val = min(elapsed / 240.0, 0.95)
+        st.progress(progress_val)
+        
+        st.code("\n".join(st.session_state.eval_logs) if st.session_state.eval_logs else "待機中...", language="plaintext")
+    
+        time.sleep(1)
+        st.rerun()
 
 elif st.session_state.get("eval_status") == "done":
-    results = st.session_state.eval_results
-    bot_message = results.get("bot_message", "")
-    html_content = results.get("html_content", "")
-    result_data = results.get("result_data", {})
-    
-    if "❌" in bot_message:
-        st.info("⚠️ リスク評価分析の中断（ログを確認してください）")
-        st.code("\n".join(st.session_state.eval_logs), language="plaintext")
-    else:
-        st.info("🚀 リスク評価分析が完了しました！")
-        st.code("\n".join(st.session_state.eval_logs), language="plaintext")
+    with display_container.container():
+        results = st.session_state.eval_results
+        bot_message = results.get("bot_message", "")
+        html_content = results.get("html_content", "")
+        result_data = results.get("result_data", {})
         
-        st.success("リスク評価分析が正常に完了しました。")
-        st.subheader("🤖 分析結果レポート")
-        
-        if html_content:
-            components.html(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">{html_content}</div>', height=800, scrolling=True)
-        elif bot_message.strip():
-            st.markdown(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">\n\n{bot_message}\n\n</div>', unsafe_allow_html=True)
+        if "❌" in bot_message:
+            st.info("⚠️ リスク評価分析の中断（ログを確認してください）")
+            st.code("\n".join(st.session_state.eval_logs), language="plaintext")
         else:
-            with st.expander("🤖 APIの生データ(Raw Response)の確認"):
-                st.json(result_data)
+            st.info("🚀 リスク評価分析が完了しました！")
+            st.code("\n".join(st.session_state.eval_logs), language="plaintext")
+            
+            st.success("リスク評価分析が正常に完了しました。")
+            st.subheader("🤖 分析結果レポート")
+            
+            if html_content:
+                components.html(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">{html_content}</div>', height=800, scrolling=True)
+            elif bot_message.strip():
+                st.markdown(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">\n\n{bot_message}\n\n</div>', unsafe_allow_html=True)
+            else:
+                with st.expander("🤖 APIの生データ(Raw Response)の確認"):
+                    st.json(result_data)
