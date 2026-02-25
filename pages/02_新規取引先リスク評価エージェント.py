@@ -69,11 +69,11 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
                         msg = chat.get("message", "")
                         
                         if ctype == "llm" and "Company_Name" in msg:
-                            add_log("📄 [진행상황] AI 문서 데이터 추출 완료")
+                            add_log("📄 AI 문서 데이터 추출 중...")
                         elif ctype == "llm":
-                            add_log("🧠 [진행상황] AI 거래 상황 및 컨텍스트 분석 완료")
+                            add_log("🧠 AI 거래 상황 및 컨텍스트 분석 중...")
                         elif ctype == "tn":
-                            add_log("🌐 [진행상황] Master AI 회사 평가 (MCP 서버 호출) 완료")
+                            add_log("🌐 Master AI 회사 평가 중...")
             except Exception:
                 pass
                 
@@ -248,15 +248,12 @@ elif st.session_state.get("eval_status") == "done":
         st.code("\n".join(st.session_state.eval_logs), language="plaintext")
         
         st.success("リスク評価分析が正常に完了しました。")
-        st.subheader("分析結果レポート")
+        st.subheader("🤖 分析結果レポート")
         
         if html_content:
-            st.markdown("### 🤖 AIキャンバス分析結果")
             components.html(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">{html_content}</div>', height=800, scrolling=True)
         elif bot_message.strip():
-            st.markdown("### 🤖 AI分析結果の要約")
             st.markdown(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">\n\n{bot_message}\n\n</div>', unsafe_allow_html=True)
         else:
-            st.markdown("### 🤖 APIの生データ(Raw Response)")
-            with st.expander("結果データの確認"):
+            with st.expander("🤖 APIの生データ(Raw Response)の確認"):
                 st.json(result_data)
