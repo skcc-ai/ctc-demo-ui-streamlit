@@ -142,19 +142,37 @@ def show_invoice_detail():
 
     st.markdown("---")
 
-    # 라인 항목
-    for i in range(max(len(po_lines_df), len(invoice_lines_df))):
-        po_line = po_lines_df.iloc[i] if i < len(po_lines_df) else {}
-        inv_line = invoice_lines_df.iloc[i] if i < len(invoice_lines_df) else {}
+    # 라인 항목 - item_code 기준으로 매칭
 
-        line_num = po_line.get("line_number", i + 1) if len(po_line) > 0 else i + 1
-        st.markdown(f"**품목 {line_num}**")
+    po_line_dict = {row["item_code"]: row for _, row in po_lines_df.iterrows()}
+    inv_line_dict = {row["item_code"]: row for _, row in invoice_lines_df.iterrows()}
+
+    all_item_codes = list(po_line_dict.keys()) + [k for k in inv_line_dict.keys() if k not in po_line_dict]
+
+    for item_code in all_item_codes:
+        po_line = po_line_dict.get(item_code, {})
+        inv_line = inv_line_dict.get(item_code, {})
+
+        st.markdown(f"**품목 {item_code}**")
 
         render_row("품목명", po_line.get("item_name", "-"), inv_line.get("item_name", "-"))
         render_row("수량", po_line.get("quantity", "-"), inv_line.get("quantity", "-"))
         render_row("단가", po_line.get("unit_price", "-"), inv_line.get("unit_price", "-"))
         render_row("금액", po_line.get("line_amount", "-"), inv_line.get("line_amount", "-"))
         st.markdown("---")
+    # # 라인 항목
+    # for i in range(max(len(po_lines_df), len(invoice_lines_df))):
+    #     po_line = po_lines_df.iloc[i] if i < len(po_lines_df) else {}
+    #     inv_line = invoice_lines_df.iloc[i] if i < len(invoice_lines_df) else {}
+    #
+    #     line_num = po_line.get("line_number", i + 1) if len(po_line) > 0 else i + 1
+    #     st.markdown(f"**품목 {line_num}**")
+    #
+    #     render_row("품목명", po_line.get("item_name", "-"), inv_line.get("item_name", "-"))
+    #     render_row("수량", po_line.get("quantity", "-"), inv_line.get("quantity", "-"))
+    #     render_row("단가", po_line.get("unit_price", "-"), inv_line.get("unit_price", "-"))
+    #     render_row("금액", po_line.get("line_amount", "-"), inv_line.get("line_amount", "-"))
+    #     st.markdown("---")
 
 
 # DB 연결 함수
@@ -234,6 +252,21 @@ elif sub == "청구서 검증 요청 현황":
                         # 1. Azure Blob Storage 업로드
                         file_path = upload_pdf_to_blob(uploaded_file)
                         st.subheader(file_path)
+
+                        # 2. Alli 호출
+                        uploaded_file.seek(0)  # 파일 포인터 초기화
+                        alli_response = requests.post(
+                            "https://backend.alli.ai/webapi/apps/TExNQXBwOjY5OWQzZmNjMWEzMTQ0Zjc2N2ZlMTg5MA==/run",
+                            headers={"API-KEY": "SUKYXKTTRPYVAHHOFTSWQYWS3QFSONQJYA"},
+                            files={"PDF_FILE": (uploaded_file.name, uploaded_file.read(), "application/pdf")},
+                            data={"json": json.dumps({"mode": "sync"})}
+                        )
+
+                        if alli_response.status_code == 200:
+                            st.success("✅ 2. Alli 호출 완료!")
+                            st.json(alli_response.json())
+                        else:
+                            st.error(f"❌ 2. Alli 호출 실패: {alli_response.status_code} {alli_response.text}")
 
                         # # 2. API 호출 (file_path 파라미터 포함)
                         # response = requests.post(
