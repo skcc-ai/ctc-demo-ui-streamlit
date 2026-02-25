@@ -87,27 +87,13 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
             upload_file_to_blob(file_name, file_bytes)
             add_log(f"ファイルが正常に処理されました。（ファイル名：{file_name}）")
             
-        # Step 1: Start conversation
-        add_log("APIサーバーと接続中（ステップ1/2）...")
+        add_log("APIサーバーに分析データを送信中...")
         url_start = f"{base_url}/webapi/apps/{app_id}/run"
-        payload_start = {"isStateful": True, "mode": "background"}
-        
-        # requests.post with json=... automatically sets Content-Type: application/json
-        res_start = requests.post(url_start, headers=get_headers(), json=payload_start, timeout=60)
-        res_start.raise_for_status()
-        conversation_id = res_start.json()["result"]["conversation"]["id"]
-        
-        # Step 2: Poll till initialized
-        poll_until_done(conversation_id, label="初期化")
-
-        # Step 3: Send user message and files
-        add_log("APIサーバーに状況説明を送信中（ステップ2/2）...")
         
         data = {
             "json": json.dumps({
                 "mode": "background",
                 "isStateful": True,
-                "conversationId": conversation_id,
                 "chat": {
                     "message": "Start Evaluation"
                 },
@@ -121,13 +107,15 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
         if file_name and file_bytes:
             files["COMPANY_ID_IMAGE"] = (file_name, file_bytes, file_type)
 
-        res_msg = requests.post(url_start, headers=get_headers(), data=data, files=files, timeout=60)
-        res_msg.raise_for_status()
+        res_start = requests.post(url_start, headers=get_headers(), data=data, files=files, timeout=60)
+        res_start.raise_for_status()
         
-        # Step 4: Poll till processed
-        poll_until_done(conversation_id, label="処理")
+        conversation_id = res_start.json()["result"]["conversation"]["id"]
+        
+        # Step 2: Poll till processed (wait for background tasks)
+        poll_until_done(conversation_id, label="バックグラウンド処理")
 
-        # Step 5: Fetch chats for result
+        # Step 3: Fetch chats for result
         add_log("分析完了。結果を取得しています...")
         url_chats = f"{base_url}/webapi/v2/conversations/{conversation_id}/chats"
         res_chats = requests.get(url_chats, headers=get_headers(), timeout=60)
@@ -267,7 +255,7 @@ elif st.session_state.get("eval_status") == "done":
             components.html(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">{html_content}</div>', height=800, scrolling=True)
         elif bot_message.strip():
             st.markdown("### 🤖 AI分析結果の要約")
-            st.markdown(bot_message)
+            st.markdown(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">\n\n{bot_message}\n\n</div>', unsafe_allow_html=True)
         else:
             st.markdown("### 🤖 APIの生データ(Raw Response)")
             with st.expander("結果データの確認"):
