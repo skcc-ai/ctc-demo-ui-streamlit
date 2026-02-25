@@ -45,7 +45,7 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
     seen_chat_ids = set()
     
     def get_headers():
-        return {"API-KEY": api_key, "Content-Type": "application/json"}
+        return {"API-KEY": api_key}
         
     def poll_until_done(conversation_id, label=""):
         url_run = f"{base_url}/webapi/v2/conversations/{conversation_id}/running"
@@ -92,6 +92,7 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
         url_start = f"{base_url}/webapi/apps/{app_id}/run"
         payload_start = {"isStateful": True, "mode": "background"}
         
+        # requests.post with json=... automatically sets Content-Type: application/json
         res_start = requests.post(url_start, headers=get_headers(), json=payload_start, timeout=60)
         res_start.raise_for_status()
         conversation_id = res_start.json()["result"]["conversation"]["id"]
@@ -99,20 +100,28 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
         # Step 2: Poll till initialized
         poll_until_done(conversation_id, label="初期化")
 
-        # Step 3: Send user message
+        # Step 3: Send user message and files
         add_log("APIサーバーに状況説明を送信中（ステップ2/2）...")
-        payload_msg = {
-            "chat": {"message": "Start Evaluation"},
-            "inputs": {"DEAL_CONTEXT_TEXT": situation_desc},
-            "conversationId": conversation_id,
-            "isStateful": True,
-            "mode": "background"
-        }
         
-        # File upload support in standard run endpoint if we had multiple parts wasn't strictly in the slow API test format, but we will assume for background mode we can still just send inputs/messages
-        # However, backend.alli.ai standard form-data structure differs from pure json json={} background call.
-        # Since the test script uses JSON, we will send json.
-        res_msg = requests.post(url_start, headers=get_headers(), json=payload_msg, timeout=60)
+        data = {
+            "json": json.dumps({
+                "mode": "background",
+                "isStateful": True,
+                "conversationId": conversation_id,
+                "chat": {
+                    "message": "Start Evaluation"
+                },
+                "inputs": {
+                    "DEAL_CONTEXT_TEXT": situation_desc
+                }
+            })
+        }
+
+        files = {}
+        if file_name and file_bytes:
+            files["COMPANY_ID_IMAGE"] = (file_name, file_bytes, file_type)
+
+        res_msg = requests.post(url_start, headers=get_headers(), data=data, files=files, timeout=60)
         res_msg.raise_for_status()
         
         # Step 4: Poll till processed
