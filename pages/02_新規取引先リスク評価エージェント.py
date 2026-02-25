@@ -3,6 +3,8 @@ import time
 import requests
 import json
 import os
+from datetime import datetime
+import pytz
 import streamlit.components.v1 as components
 from azure.storage.blob import BlobServiceClient
 import threading
@@ -26,32 +28,77 @@ if "eval_logs" not in st.session_state:
 if "eval_results" not in st.session_state:
     st.session_state.eval_results = {}
 
+def get_jst_time():
+    return datetime.now(pytz.timezone("Asia/Tokyo")).strftime('%H:%M:%S')
+
 def add_log(msg):
     if msg.startswith("❌") or msg.startswith("⚠️"):
         # The message already has an emoji, so just insert the time after it
         emoji_char = msg[0]
         text_part = msg[1:].strip()
-        timestamp = time.strftime('%H:%M:%S')
+        timestamp = get_jst_time()
         st.session_state.eval_logs.append(f"{emoji_char} {timestamp} - {text_part}")
     else:
         # Prepend the default success/info emoji
-        st.session_state.eval_logs.append(f"✅ {time.strftime('%H:%M:%S')} - {msg}")
+        st.session_state.eval_logs.append(f"✅ {get_jst_time()} - {msg}")
 
 def background_task(file_name, file_bytes, file_type, situation_desc):
+    app_id = "TExNQXBwOjY5OTQyM2M0ZjgyNTQ2MTVkM2RhYzMxYg=="
+    api_key = "SUKYXKTTRPYVAHHOFTSWQYWS3QFSONQJYA"
+    base_url = "https://backend.alli.ai"
+    
+    seen_chat_ids = set()
+    
+    def get_headers():
+        return {"API-KEY": api_key}
+        
+    def poll_until_done(conversation_id, label=""):
+        url_run = f"{base_url}/webapi/v2/conversations/{conversation_id}/running"
+        url_chats = f"{base_url}/webapi/v2/conversations/{conversation_id}/chats"
+        headers = get_headers()
+        start = time.time()
+        while True:
+            res = requests.get(url_run, headers=headers, timeout=30)
+            res.raise_for_status()
+            is_running = res.json().get("isRunning", False)
+            
+            # Fetch intermediate chats to display AI progress
+            try:
+                c = requests.get(url_chats, headers=headers, timeout=30)
+                chats = c.json().get("chats", [])
+                for chat in chats:
+                    cid = chat.get("id")
+                    if cid and cid not in seen_chat_ids:
+                        seen_chat_ids.add(cid)
+                        ctype = chat.get("type", "")
+                        msg = chat.get("message", "")
+                        
+                        if ctype == "llm" and "Company_Name" in msg:
+                            add_log("📄 AI画像データ抽出中...")
+                        elif ctype == "llm":
+                            add_log("🧠 AI取引状況およびコンテキスト分析中...")
+                        elif ctype == "tn":
+                            add_log("🌐 Master AI 会社評価中...")
+            except Exception:
+                pass
+                
+            if not is_running:
+                return time.time() - start
+            time.sleep(5)
+
     try:
         if file_name and file_bytes:
             add_log("ファイルアップロードの準備中...")
             upload_file_to_blob(file_name, file_bytes)
             add_log(f"ファイルが正常に処理されました。（ファイル名：{file_name}）")
             
-        add_log("API送信データ（JSONおよびファイルオブジェクト）の規格を作成中...")
-        app_id = "TExNQXBwOjY5OTQyM2M0ZjgyNTQ2MTVkM2RhYzMxYg=="
-        api_key = "SUKYXKTTRPYVAHHOFTSWQYWS3QFSONQJYA"
-        api_url = f"https://backend.alli.ai/webapi/apps/{app_id}/run"
+        add_log("APIサーバーに分析データを送信中...")
+        url_start = f"{base_url}/webapi/apps/{app_id}/run"
         
         data = {
             "json": json.dumps({
-                "mode": "sync",
+                "mode": "background",
+                "isStateful": True,
                 "chat": {
                     "message": "Start Evaluation"
                 },
@@ -65,61 +112,51 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
         if file_name and file_bytes:
             files["COMPANY_ID_IMAGE"] = (file_name, file_bytes, file_type)
 
-        headers = {
-            "API-KEY": api_key
-        }
+        res_start = requests.post(url_start, headers=get_headers(), data=data, files=files, timeout=60)
+        res_start.raise_for_status()
+        
+        conversation_id = res_start.json()["result"]["conversation"]["id"]
+        
+        # Step 2: Poll till processed (wait for background tasks)
+        poll_until_done(conversation_id, label="バックグラウンド処理")
 
-        add_log("Allganize APIサーバーに分析リクエストを送信...（AI分析が完了するまで待機します。最大10分かかる場合があります）")
-        response = requests.post(api_url, data=data, files=files, headers=headers, timeout=600)
-        add_log(f"サーバー応答の受信完了 (ステータスコード: {response.status_code})")
+        # Step 3: Fetch chats for result
+        add_log("分析完了。結果を取得しています...")
+        url_chats = f"{base_url}/webapi/v2/conversations/{conversation_id}/chats"
+        res_chats = requests.get(url_chats, headers=get_headers(), timeout=60)
+        res_chats.raise_for_status()
+        
+        chats_data = res_chats.json()
+        chats = chats_data.get("chats", [])
         
         bot_message = ""
         html_content = ""
-        result_data = {}
+        result_data = chats_data
         
-        try:
-            raw_text = response.text
-            add_log(f"[サーバー応答] {raw_text}")
-        except Exception:
-            raw_text = "Raw Response の確認不可"
-            
-        if response.status_code != 200:
-            add_log(f"❌ 失敗！Allganizeサーバーからエラーコード({response.status_code})が返されました。上記のRAWデータを確認してください。")
-            bot_message = f"❌ APIサーバー連携エラー ({response.status_code}): {raw_text}"
-        else:
-            try:
-                result_data = response.json()
-            except json.JSONDecodeError:
-                result_data = {}
-                add_log("JSON形式ではありません。")
+        add_log("受信した結果データのパースを開始（HTMLキャンバスおよび要約情報の抽出）...")
+        # Since chats come as a list, find the last BOT message
+        for chat in reversed(chats):
+            if chat.get("sender") == "BOT":
+                bot_message = chat.get("message", "")
                 
-            add_log("受信した結果データのパースを開始（HTMLキャンバスおよび要約情報の抽出）...")
-            try:
-                data_block = result_data.get("data", {})
-                result_block = data_block.get("result", {}) if data_block else result_data.get("result", {})
-                
-                if isinstance(result_block, dict):
-                    metadata = result_block.get("metadata", {})
-                    if isinstance(metadata, dict):
-                        html_content = metadata.get("last_canvas_content", "")
-                    
-                    if result_block.get("response"):
-                        bot_message = result_block.get("response")
-                
-                if not html_content and not bot_message:
-                    variables = result_block.get("variables", {})
-                    if "RESPONSE" in variables:
-                        bot_message = variables["RESPONSE"]
+                # Check for metadata/canvas
+                try:
+                    metadata_str = chat.get("metadata", "{}")
+                    if isinstance(metadata_str, str):
+                        metadata = json.loads(metadata_str)
                     else:
-                        responses = result_block.get("responses", [])
-                        if isinstance(responses, list):
-                            for resp in responses:
-                                if resp.get("sender") == "BOT":
-                                    bot_message = resp.get("message", "")
-                add_log("パース成功！分析結果を生成します。")
-            except Exception as parse_e:
-                bot_message = f"応答のパースに失敗: {parse_e}"
-                add_log("パース中にエラーが発生しました。Raw Dataを確認してください。")
+                        metadata = metadata_str
+                    
+                    if isinstance(metadata, dict) and "last_canvas_content" in metadata:
+                        html_content = metadata.get("last_canvas_content", "")
+                except Exception:
+                    pass
+                break
+                
+        if not bot_message:
+            bot_message = "BOTから有効なメッセージを受け取れませんでした。"
+            
+        add_log("パース成功！分析結果を生成します。")
                 
         st.session_state.eval_results = {
             "html_content": html_content,
@@ -129,7 +166,7 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
         st.session_state.eval_status = "done"
 
     except requests.exceptions.Timeout:
-        add_log("❌ 応答制限時間（10分）を超過しました。サーバー側の処理が遅延しています。")
+        add_log("❌ 応答制限時間を超過しました。サーバー側の処理が遅延しています。")
         st.session_state.eval_results = {"bot_message": "❌ API呼び出し中にエラーが発生しました: リクエストがタイムアウトしました。", "html_content": "", "result_data": {}}
         st.session_state.eval_status = "done"
     except Exception as e:
@@ -176,7 +213,7 @@ if st.button("リスク評価分析を開始", type="primary"):
     st.session_state.eval_start_time = time.time()
     
     if not uploaded_file and not situation_description:
-        st.session_state.eval_logs.append(f"⚠️ {time.strftime('%H:%M:%S')} - 証明書類の未アップロードおよび状況説明の未入力（デフォルト値で進行します）")
+        st.session_state.eval_logs.append(f"⚠️ {get_jst_time()} - 証明書類の未アップロードおよび状況説明の未入力（デフォルト値で進行します）")
         
     file_name = uploaded_file.name if uploaded_file else None
     file_bytes = uploaded_file.getvalue() if uploaded_file else None
@@ -216,15 +253,12 @@ elif st.session_state.get("eval_status") == "done":
         st.code("\n".join(st.session_state.eval_logs), language="plaintext")
         
         st.success("リスク評価分析が正常に完了しました。")
-        st.subheader("分析結果レポート")
+        st.subheader("🤖 分析結果レポート")
         
         if html_content:
-            st.markdown("### 🤖 AIキャンバス分析結果")
             components.html(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">{html_content}</div>', height=800, scrolling=True)
         elif bot_message.strip():
-            st.markdown("### 🤖 AI分析結果の要約")
-            st.markdown(bot_message)
+            st.markdown(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">\n\n{bot_message}\n\n</div>', unsafe_allow_html=True)
         else:
-            st.markdown("### 🤖 APIの生データ(Raw Response)")
-            with st.expander("結果データの確認"):
+            with st.expander("🤖 APIの生データ(Raw Response)の確認"):
                 st.json(result_data)
