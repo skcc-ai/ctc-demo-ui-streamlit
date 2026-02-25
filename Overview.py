@@ -225,9 +225,8 @@ html, body, [class*="css"] {
 st.markdown("""
 <div class="hero">
     <div class="hero-badge">🤖 AI Agent Demo</div>
-    <div class="hero-title">안녕하세요,<br><span>에이전트 데모</span> 시연 UI입니다</div>
-    <div class="hero-sub">복잡한 업무를 자동화하는 AI 에이전트 시나리오를<br>직접 체험해 보세요.</div>
-</div>
+    <div class="hero-title">ようこそ、<br><span>エージェントデモ</span>のUIです</div>
+    <div class="hero-sub">複雑な業務を自動化するAIエージェントのシナリオを<br>直接体験してみてください。</div></div>
 """, unsafe_allow_html=True)
 
 
@@ -238,8 +237,8 @@ scenarios = [
     {
         "num": "SCENARIO 01",
         "icon": "🧾",
-        "title": "지능형 청구서 검증 워크벤치 (Smart Invoice Validator)",
-        "context": "재무팀 담당자가 이메일로 수신한 공급업체(도쿄전자)의 청구서(PDF)를 처리해야 합니다. 발주(PO) 시스템에 등록된 금액과 청구서 금액이 달라, 이를 수작업으로 대조하고 원인을 파악해야 하는 상황입니다."
+        "title": "請求書検証ワークベンチ (Smart Invoice Validator)",
+        "context": "財務チームの担当者がメールで受信したサプライヤー（東京電子）の請求書（PDF）を処理する必要があります。発注（PO）システムに登録された金額と請求書の金額が異なるため、手作業で照合し原因を把握しなければならない状況です。"
     },
     {
         "num": "SCENARIO 02",
@@ -250,8 +249,8 @@ scenarios = [
     {
         "num": "SCENARIO 03",
         "icon": "🔍",
-        "title": "AI 내부 통제 및 감사 매니저 (AI Compliance & Audit Manager)",
-        "context": "감사팀 직원이 출근하여 전날 발생한 법인카드 사용 내역 중 '부정 사용' 의심 건을 검토합니다. 수천 건 중 AI가 미리 필터링한 '고위험군'만 집중해서 확인합니다."
+        "title": "AI内部統制・監査マネージャー (AI Compliance & Audit Manager)",
+        "context": "監査チームの担当者が出勤し、前日に発生した法人カード使用履歴の中から「不正使用」疑いの案件を確認します。数千件の中からAIが事前にフィルタリングした「高リスク群」のみに集中して確認します。"
     },
 ]
 
@@ -275,14 +274,13 @@ st.markdown('<div class="section-title">💬 Chat Agent Scenarios</div>', unsafe
 
 st.markdown("""
 <div style="font-size:0.82rem; color:#4a6a8a; margin-bottom:1.2rem; line-height:1.6; font-weight:300;">
-    비정형 질문 · 빠른 정보 검색 · 모바일 환경 대응 — 워크플로우의 기본 UI를 활용하거나 최소한의 커스텀만 적용합니다.
-</div>
+    非定形の質問 · 迅速な情報検索 · モバイル環境対応 — ワークフローの基本UIを活用するか、最小限のカスタムのみ適用します。</div>
 """, unsafe_allow_html=True)
 
 chat_scenarios = [
-    ("사내 규정 및 구매 가이드 챗봇", "Policy & Compliance Bot"),
-    ("계약서 독소 조항 자동 검토", "Contract AI Reviewer"),
-    ("자연어 기반 주문 현황 조회", "Sales Field Assistant"),
+    ("社内規定・購買ガイドチャットボット", "Policy & Compliance Bot"),
+    ("契約書の毒素条項自動レビュー", "Contract AI Reviewer"),
+    ("自然言語ベースの注文状況照会", "Sales Field Assistant"),
 ]
 
 for i, (ko, en) in enumerate(chat_scenarios, 1):

@@ -49,12 +49,12 @@ def fmt(val, compare_val=None):
     return formatted
 
 st.set_page_config(
-    page_title="청구서 정합성 검증",
+    page_title="請求書検証ワークベンチ",
     page_icon="📇",
     layout="wide",
 )
 
-"# 📇 청구서 정합성 검증"
+"# 📇 請求書整合性検証"
 
 """
 Invoice Reconciliation Agent
@@ -68,19 +68,19 @@ if "selected_row" not in st.session_state:
 def show_invoice_detail():
     row = st.session_state.selected_row
 
-    if st.button("⬅️ 목록으로 돌아가기"):
+    if st.button("⬅️ リストに戻る"):
         st.session_state.page = "list"
         st.session_state.selected_row = None
         st.rerun()
 
-    st.subheader("📋 청구서 상세 정보")
+    st.subheader("📋 請求書の詳細")
     st.markdown("---")
 
     if row.get("match_status") in ["MATCHED"] or row.get("match_status") is None:
-        st.success("✅ 불일치 발주 내역 없음")
+        st.success("✅ 不一致発注履歴なし")
     else:
         notes = row.get("notes", "")
-        st.error(f"⚠️ 불일치 발주 내역\n\n\t{notes}")
+        st.error(f"⚠️ 不一致発注履歴\n\n\t{notes}")
 
 
     st.dataframe(pd.DataFrame([row]), use_container_width=True)
@@ -124,22 +124,22 @@ def show_invoice_detail():
     # 헤더
     col_label, col_po, col_inv = st.columns([2, 3, 3])
     with col_label:
-        st.markdown("**항목**")
+        st.markdown("**アイテム**")
     with col_po:
-        st.markdown("**📄 발주서**")
+        st.markdown("**📄 発注書**")
     with col_inv:
-        st.markdown("**🧾 청구서**")
+        st.markdown("**🧾 請求書**")
     st.markdown("---")
 
     # 헤더 공통 항목
     render_row("PO Number", po_row.get("po_number", "-"), inv_row.get("po_number", "-"))
     render_row("Invoice Number", po_row.get("invoice_number", "-"), inv_row.get("invoice_number", "-"))
-    render_row("날짜", po_row.get("po_date", "-"), inv_row.get("invoice_date", "-"))
-    render_row("통화", po_row.get("currency", "-"), inv_row.get("currency", "-"))
-    render_row("소계", po_row.get("subtotal", "-"), inv_row.get("subtotal", "-"))
-    render_row("세금", po_row.get("tax_amount", "-"), inv_row.get("tax_amount", "-"))
-    render_row("배송비", po_row.get("shipping_fee", "-"), inv_row.get("shipping_fee", "-"))
-    render_row("합계", po_row.get("total_amount", "-"), inv_row.get("total_amount", "-"))
+    render_row("日付", po_row.get("po_date", "-"), inv_row.get("invoice_date", "-"))
+    render_row("通貨", po_row.get("currency", "-"), inv_row.get("currency", "-"))
+    render_row("小計", po_row.get("subtotal", "-"), inv_row.get("subtotal", "-"))
+    render_row("税", po_row.get("tax_amount", "-"), inv_row.get("tax_amount", "-"))
+    render_row("送料", po_row.get("shipping_fee", "-"), inv_row.get("shipping_fee", "-"))
+    render_row("合計", po_row.get("total_amount", "-"), inv_row.get("total_amount", "-"))
 
     st.markdown("---")
 
@@ -154,12 +154,12 @@ def show_invoice_detail():
         po_line = po_line_dict.get(item_code, {})
         inv_line = inv_line_dict.get(item_code, {})
 
-        st.markdown(f"**품목 {item_code}**")
+        st.markdown(f"**アイテム {item_code}**")
 
-        render_row("품목명", po_line.get("item_name", "-"), inv_line.get("item_name", "-"))
-        render_row("수량", po_line.get("quantity", "-"), inv_line.get("quantity", "-"))
-        render_row("단가", po_line.get("unit_price", "-"), inv_line.get("unit_price", "-"))
-        render_row("금액", po_line.get("line_amount", "-"), inv_line.get("line_amount", "-"))
+        render_row("アイテム名", po_line.get("item_name", "-"), inv_line.get("item_name", "-"))
+        render_row("数量", po_line.get("quantity", "-"), inv_line.get("quantity", "-"))
+        render_row("単価", po_line.get("unit_price", "-"), inv_line.get("unit_price", "-"))
+        render_row("金額", po_line.get("line_amount", "-"), inv_line.get("line_amount", "-"))
         st.markdown("---")
     # # 라인 항목
     # for i in range(max(len(po_lines_df), len(invoice_lines_df))):
@@ -203,11 +203,11 @@ div[role="radiogroup"] label {
 }
 </style>
 """, unsafe_allow_html=True)
-sub = st.sidebar.radio("", ["발주서 목록", "청구서 검증 요청 현황"])
+sub = st.sidebar.radio("", ["発注書一覧", "請求書検証要求の状況"])
 
-if sub == "발주서 목록":
+if sub == "発注書一覧":
 
-    st.subheader("발주서 목록")
+    st.subheader("発注書一覧")
     df = get_table_data("SELECT * FROM po_header")
 
     selected = st.dataframe(
@@ -222,12 +222,12 @@ if sub == "발주서 목록":
         row = df.iloc[row_idx]
 
         st.divider()
-        st.subheader("📋 발주서 상세 정보")
+        st.subheader("📋発注書詳細")
 
         for col in df.columns:
             st.markdown(f"**{col}**: {row[col]}")
 
-elif sub == "청구서 검증 요청 현황":
+elif sub == "請求書検証要求の状況":
 
     if st.session_state.page == "detail":
         show_invoice_detail()
@@ -235,17 +235,17 @@ elif sub == "청구서 검증 요청 현황":
     else:
         col1, col2, col3 = st.columns([3, 4, 2])
         with col1:
-            st.subheader("청구서 검증 요청 현황")
+            st.subheader("請求書検証要求の状況")
         with col2:
-            exclude_matched = st.checkbox("발주서와 동일한 항목 제외")
+            exclude_matched = st.checkbox("発注書と同じアイテムを除外")
         with col3:
-            if st.button("📄 청구서 업로드", use_container_width=True):
+            if st.button("📄 請求書のアップロード", use_container_width=True):
                 st.session_state.show_upload = True
 
         if st.session_state.get("show_upload", False):
-            uploaded_file = st.file_uploader("PDF 파일을 선택하세요", type=["pdf"])
+            uploaded_file = st.file_uploader("PDFファイルを選択してください", type=["pdf"])
             if uploaded_file:
-                with st.spinner("청구서 분석 중..."):
+                with st.spinner("請求書分析中..."):
                     try:
                         import json
                         import requests
@@ -264,10 +264,10 @@ elif sub == "청구서 검증 요청 현황":
                         )
 
                         if alli_response.status_code == 200:
-                            st.success("✅ 2. Alli 호출 완료!")
+                            st.success("✅ Alli 呼び出し完了!")
                             st.json(alli_response.json())
                         else:
-                            st.error(f"❌ 2. Alli 호출 실패: {alli_response.status_code} {alli_response.text}")
+                            st.error(f"❌ Alli 呼び出し失敗: {alli_response.status_code} {alli_response.text}")
 
                         # # 2. API 호출 (file_path 파라미터 포함)
                         # response = requests.post(
