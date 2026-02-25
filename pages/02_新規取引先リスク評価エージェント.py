@@ -42,21 +42,43 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
     api_key = "SUKYXKTTRPYVAHHOFTSWQYWS3QFSONQJYA"
     base_url = "https://backend.alli.ai"
     
+    seen_chat_ids = set()
+    
     def get_headers():
         return {"API-KEY": api_key, "Content-Type": "application/json"}
         
     def poll_until_done(conversation_id, label=""):
-        url = f"{base_url}/webapi/v2/conversations/{conversation_id}/running"
+        url_run = f"{base_url}/webapi/v2/conversations/{conversation_id}/running"
+        url_chats = f"{base_url}/webapi/v2/conversations/{conversation_id}/chats"
         headers = get_headers()
         start = time.time()
         while True:
-            res = requests.get(url, headers=headers, timeout=30)
+            res = requests.get(url_run, headers=headers, timeout=30)
             res.raise_for_status()
             is_running = res.json().get("isRunning", False)
-            elapsed = time.time() - start
-            add_log(f"({label}) 分析中です... ({int(elapsed)}秒経過)")
+            
+            # Fetch intermediate chats to display AI progress
+            try:
+                c = requests.get(url_chats, headers=headers, timeout=30)
+                chats = c.json().get("chats", [])
+                for chat in chats:
+                    cid = chat.get("id")
+                    if cid and cid not in seen_chat_ids:
+                        seen_chat_ids.add(cid)
+                        ctype = chat.get("type", "")
+                        msg = chat.get("message", "")
+                        
+                        if ctype == "llm" and "Company_Name" in msg:
+                            add_log("📄 [진행상황] AI 문서 데이터 추출 완료")
+                        elif ctype == "llm":
+                            add_log("🧠 [진행상황] AI 거래 상황 및 컨텍스트 분석 완료")
+                        elif ctype == "tn":
+                            add_log("🌐 [진행상황] 외부 신용 데이터 연동 및 조회 완료")
+            except Exception:
+                pass
+                
             if not is_running:
-                return elapsed
+                return time.time() - start
             time.sleep(5)
 
     try:
