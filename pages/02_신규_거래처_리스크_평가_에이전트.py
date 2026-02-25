@@ -27,7 +27,15 @@ if "eval_results" not in st.session_state:
     st.session_state.eval_results = {}
 
 def add_log(msg):
-    st.session_state.eval_logs.append(f"✅ {time.strftime('%H:%M:%S')} - {msg}")
+    if msg.startswith("❌") or msg.startswith("⚠️"):
+        # The message already has an emoji, so just insert the time after it
+        emoji_char = msg[0]
+        text_part = msg[1:].strip()
+        timestamp = time.strftime('%H:%M:%S')
+        st.session_state.eval_logs.append(f"{emoji_char} {timestamp} - {text_part}")
+    else:
+        # Prepend the default success/info emoji
+        st.session_state.eval_logs.append(f"✅ {time.strftime('%H:%M:%S')} - {msg}")
 
 def background_task(file_name, file_bytes, file_type, situation_desc):
     try:
@@ -71,7 +79,7 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
         
         try:
             raw_text = response.text
-            add_log(f"[RAW 데이터 전체] {raw_text}")
+            add_log(f"[서버 응답] {raw_text}")
         except Exception:
             raw_text = "Raw Response 확인 불가"
             
@@ -131,15 +139,15 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
 
 
 st.set_page_config(
-    page_title="신규 거래처 리스크 평가 및 등록 마법사",
+    page_title="신규 거래처 리스크 평가 에이전트",
     page_icon="🏢",
     layout="wide",
 )
 
-st.title("신규 거래처 리스크 평가 및 등록 마법사")
+st.title("신규 거래처 리스크 평가 에이전트")
 
 st.markdown("""
-이 마법사는 신규 거래처 등록 전, 명함이나 사업자등록증 등을 통해 **기본 정보를 추출**하고, 
+이 에이전트는 신규 거래처 등록 전, 명함이나 사업자등록증 등을 통해 **기본 정보를 추출**하고, 
 입력해주신 **상황 설명**을 종합하여 당사와의 거래에 있어 **잠재적 리스크를 평가**합니다.
 """)
 
@@ -162,64 +170,61 @@ else:
     situation_description = selected_situation
 
 if st.button("리스크 평가 분석 시작", type="primary"):
+    st.session_state.eval_status = "running"
+    st.session_state.eval_logs = []
+    st.session_state.eval_results = {}
+    st.session_state.eval_start_time = time.time()
+    
     if not uploaded_file and not situation_description:
-        st.warning("증빙 서류를 업로드하거나 상황 설명을 입력해주세요.")
-    else:
-        st.session_state.eval_status = "running"
-        st.session_state.eval_logs = []
-        st.session_state.eval_results = {}
+        st.session_state.eval_logs.append(f"⚠️ {time.strftime('%H:%M:%S')} - 증빙 서류 미업로드 및 상황 설명 미입력 (기본값으로 진행됩니다)")
         
-        file_name = uploaded_file.name if uploaded_file else None
-        file_bytes = uploaded_file.getvalue() if uploaded_file else None
-        file_type = uploaded_file.type if uploaded_file else None
-        
-        t = threading.Thread(target=background_task, args=(file_name, file_bytes, file_type, situation_description))
-        add_script_run_ctx(t)
-        t.start()
-        st.rerun()
+    file_name = uploaded_file.name if uploaded_file else None
+    file_bytes = uploaded_file.getvalue() if uploaded_file else None
+    file_type = uploaded_file.type if uploaded_file else None
+    
+    t = threading.Thread(target=background_task, args=(file_name, file_bytes, file_type, situation_description))
+    add_script_run_ctx(t)
+    t.start()
+    st.rerun()
 
 if st.session_state.get("eval_status") == "running":
-    status_placeholder = st.empty()
-    log_container = st.empty()
+    elapsed = int(time.time() - st.session_state.get("eval_start_time", time.time()))
     
-    with status_placeholder.container():
-        st.info("🚀 리스크 평가 분석 프로세스를 시작합니다...")
-        
+    st.info(f"🚀 리스크 평가 분석 중입니다... ({elapsed}초 경과) - AI가 증빙 서류와 상황 설명을 분석 중입니다 (최대 10분 소요)")
+    
+    # 가짜 프로그레스 바 (4배 느리게: 240초 동안 95%까지 차오르다가 대기)
+    progress_val = min(elapsed / 240.0, 0.95)
+    st.progress(progress_val)
+    
+    log_container = st.empty()
     log_container.code("\n".join(st.session_state.eval_logs) if st.session_state.eval_logs else "대기 중...", language="plaintext")
 
-    with st.spinner("AI가 증빙 서류와 상황 설명을 분석 중입니다..."):
-        time.sleep(1)
-        st.rerun()
+    time.sleep(1)
+    st.rerun()
 
 elif st.session_state.get("eval_status") == "done":
-    st.info("🚀 리스크 평가 분석 완료!")
-    st.code("\n".join(st.session_state.eval_logs), language="plaintext")
-    
     results = st.session_state.eval_results
     bot_message = results.get("bot_message", "")
     html_content = results.get("html_content", "")
     result_data = results.get("result_data", {})
     
-    if "❌" not in bot_message:
+    if "❌" in bot_message:
+        st.info("⚠️ 리스크 평가 분석 중단 (로그를 확인해주세요)")
+        st.code("\n".join(st.session_state.eval_logs), language="plaintext")
+    else:
+        st.info("🚀 리스크 평가 분석 완료!")
+        st.code("\n".join(st.session_state.eval_logs), language="plaintext")
+        
         st.success("리스크 평가 분석이 성공적으로 완료되었습니다.")
-    else:
-        st.error("분석 중 오류가 발생했습니다. 위의 로그를 확인해주세요.")
-    
-    st.subheader("분석 결과 보고서")
-    
-    if html_content:
-        st.markdown("### 🤖 AI 캔버스 분석 결과")
-        components.html(html_content, height=800, scrolling=True)
-    elif bot_message.strip():
-        st.markdown("### 🤖 AI 분석 결과 요약")
-        st.markdown(bot_message)
-    else:
-        st.markdown("### 🤖 API Raw Response")
-        with st.expander("결과 데이터 확인"):
-            st.json(result_data)
-            
-    if st.button("새로운 평가 시작"):
-        st.session_state.eval_status = "idle"
-        st.session_state.eval_logs = []
-        st.session_state.eval_results = {}
-        st.rerun()
+        st.subheader("분석 결과 보고서")
+        
+        if html_content:
+            st.markdown("### 🤖 AI 캔버스 분석 결과")
+            components.html(f'<div style="background-color: white; color: black; padding: 20px; border-radius: 10px;">{html_content}</div>', height=800, scrolling=True)
+        elif bot_message.strip():
+            st.markdown("### 🤖 AI 분석 결과 요약")
+            st.markdown(bot_message)
+        else:
+            st.markdown("### 🤖 API Raw Response")
+            with st.expander("결과 데이터 확인"):
+                st.json(result_data)
