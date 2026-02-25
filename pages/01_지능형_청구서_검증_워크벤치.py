@@ -49,15 +49,15 @@ def fmt(val, compare_val=None):
     return formatted
 
 st.set_page_config(
-    page_title="동적 청구서 정합성 검증",
+    page_title="청구서 정합성 검증",
     page_icon="📇",
     layout="wide",
 )
 
-"# 📇 동적 청구서 정합성 검증"
+"# 📇 청구서 정합성 검증"
 
 """
-Dynamic Invoice Reconciliation Agent
+Invoice Reconciliation Agent
 """
 
 if "page" not in st.session_state:
@@ -76,11 +76,12 @@ def show_invoice_detail():
     st.subheader("📋 청구서 상세 정보")
     st.markdown("---")
 
-    if row.get("match_status") not in ["MATCHED"]:
+    if row.get("match_status") in ["MATCHED"] or row.get("match_status") is None:
+        st.success("✅ 불일치 발주 내역 없음")
+    else:
         notes = row.get("notes", "")
         st.error(f"⚠️ 불일치 발주 내역\n\n\t{notes}")
-    else:
-        st.success("✅ 불일치 발주 내역 없음")
+
 
     st.dataframe(pd.DataFrame([row]), use_container_width=True)
 
