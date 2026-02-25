@@ -3,6 +3,8 @@ import time
 import requests
 import json
 import os
+from datetime import datetime
+import pytz
 import streamlit.components.v1 as components
 from azure.storage.blob import BlobServiceClient
 import threading
@@ -26,16 +28,19 @@ if "eval_logs" not in st.session_state:
 if "eval_results" not in st.session_state:
     st.session_state.eval_results = {}
 
+def get_jst_time():
+    return datetime.now(pytz.timezone("Asia/Tokyo")).strftime('%H:%M:%S')
+
 def add_log(msg):
     if msg.startswith("❌") or msg.startswith("⚠️"):
         # The message already has an emoji, so just insert the time after it
         emoji_char = msg[0]
         text_part = msg[1:].strip()
-        timestamp = time.strftime('%H:%M:%S')
+        timestamp = get_jst_time()
         st.session_state.eval_logs.append(f"{emoji_char} {timestamp} - {text_part}")
     else:
         # Prepend the default success/info emoji
-        st.session_state.eval_logs.append(f"✅ {time.strftime('%H:%M:%S')} - {msg}")
+        st.session_state.eval_logs.append(f"✅ {get_jst_time()} - {msg}")
 
 def background_task(file_name, file_bytes, file_type, situation_desc):
     app_id = "TExNQXBwOjY5OTQyM2M0ZjgyNTQ2MTVkM2RhYzMxYg=="
@@ -208,7 +213,7 @@ if st.button("リスク評価分析を開始", type="primary"):
     st.session_state.eval_start_time = time.time()
     
     if not uploaded_file and not situation_description:
-        st.session_state.eval_logs.append(f"⚠️ {time.strftime('%H:%M:%S')} - 証明書類の未アップロードおよび状況説明の未入力（デフォルト値で進行します）")
+        st.session_state.eval_logs.append(f"⚠️ {get_jst_time()} - 証明書類の未アップロードおよび状況説明の未入力（デフォルト値で進行します）")
         
     file_name = uploaded_file.name if uploaded_file else None
     file_bytes = uploaded_file.getvalue() if uploaded_file else None
