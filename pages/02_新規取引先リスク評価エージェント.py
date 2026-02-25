@@ -222,7 +222,7 @@ if st.button("リスク評価分析を開始", type="primary"):
     t = threading.Thread(target=background_task, args=(file_name, file_bytes, file_type, situation_description))
     add_script_run_ctx(t)
     t.start()
-    st.rerun()
+    # Execute fall-through to naturally render the running state instead of aborting the parse tree here so old chunks are cleared properly by Streamlit
 
 display_container = st.empty()
 
