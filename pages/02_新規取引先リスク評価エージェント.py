@@ -38,88 +38,101 @@ def add_log(msg):
         st.session_state.eval_logs.append(f"✅ {time.strftime('%H:%M:%S')} - {msg}")
 
 def background_task(file_name, file_bytes, file_type, situation_desc):
+    app_id = "TExNQXBwOjY5OTQyM2M0ZjgyNTQ2MTVkM2RhYzMxYg=="
+    api_key = "SUKYXKTTRPYVAHHOFTSWQYWS3QFSONQJYA"
+    base_url = "https://backend.alli.ai"
+    
+    def get_headers():
+        return {"API-KEY": api_key, "Content-Type": "application/json"}
+        
+    def poll_until_done(conversation_id, label=""):
+        url = f"{base_url}/webapi/v2/conversations/{conversation_id}/running"
+        headers = get_headers()
+        start = time.time()
+        while True:
+            res = requests.get(url, headers=headers, timeout=30)
+            res.raise_for_status()
+            is_running = res.json().get("isRunning", False)
+            elapsed = time.time() - start
+            add_log(f"({label}) 分析中です... ({int(elapsed)}秒経過)")
+            if not is_running:
+                return elapsed
+            time.sleep(5)
+
     try:
         if file_name and file_bytes:
             add_log("ファイルアップロードの準備中...")
             upload_file_to_blob(file_name, file_bytes)
             add_log(f"ファイルが正常に処理されました。（ファイル名：{file_name}）")
             
-        add_log("API送信データ（JSONおよびファイルオブジェクト）の規格を作成中...")
-        app_id = "TExNQXBwOjY5OTQyM2M0ZjgyNTQ2MTVkM2RhYzMxYg=="
-        api_key = "SUKYXKTTRPYVAHHOFTSWQYWS3QFSONQJYA"
-        api_url = f"https://backend.alli.ai/webapi/apps/{app_id}/run"
+        # Step 1: Start conversation
+        add_log("APIサーバーと接続中（ステップ1/2）...")
+        url_start = f"{base_url}/webapi/apps/{app_id}/run"
+        payload_start = {"isStateful": True, "mode": "background"}
         
-        data = {
-            "json": json.dumps({
-                "mode": "sync",
-                "chat": {
-                    "message": "Start Evaluation"
-                },
-                "inputs": {
-                    "DEAL_CONTEXT_TEXT": situation_desc
-                }
-            })
+        res_start = requests.post(url_start, headers=get_headers(), json=payload_start, timeout=60)
+        res_start.raise_for_status()
+        conversation_id = res_start.json()["result"]["conversation"]["id"]
+        
+        # Step 2: Poll till initialized
+        poll_until_done(conversation_id, label="初期化")
+
+        # Step 3: Send user message
+        add_log("APIサーバーに状況説明を送信中（ステップ2/2）...")
+        payload_msg = {
+            "chat": {"message": "Start Evaluation"},
+            "inputs": {"DEAL_CONTEXT_TEXT": situation_desc},
+            "conversationId": conversation_id,
+            "isStateful": True,
+            "mode": "background"
         }
+        
+        # File upload support in standard run endpoint if we had multiple parts wasn't strictly in the slow API test format, but we will assume for background mode we can still just send inputs/messages
+        # However, backend.alli.ai standard form-data structure differs from pure json json={} background call.
+        # Since the test script uses JSON, we will send json.
+        res_msg = requests.post(url_start, headers=get_headers(), json=payload_msg, timeout=60)
+        res_msg.raise_for_status()
+        
+        # Step 4: Poll till processed
+        poll_until_done(conversation_id, label="処理")
 
-        files = {}
-        if file_name and file_bytes:
-            files["COMPANY_ID_IMAGE"] = (file_name, file_bytes, file_type)
-
-        headers = {
-            "API-KEY": api_key
-        }
-
-        add_log("Allganize APIサーバーに分析リクエストを送信...（AI分析が完了するまで待機します。最大10分かかる場合があります）")
-        response = requests.post(api_url, data=data, files=files, headers=headers, timeout=600)
-        add_log(f"サーバー応答の受信完了 (ステータスコード: {response.status_code})")
+        # Step 5: Fetch chats for result
+        add_log("分析完了。結果を取得しています...")
+        url_chats = f"{base_url}/webapi/v2/conversations/{conversation_id}/chats"
+        res_chats = requests.get(url_chats, headers=get_headers(), timeout=60)
+        res_chats.raise_for_status()
+        
+        chats_data = res_chats.json()
+        chats = chats_data.get("chats", [])
         
         bot_message = ""
         html_content = ""
-        result_data = {}
+        result_data = chats_data
         
-        try:
-            raw_text = response.text
-            add_log(f"[サーバー応答] {raw_text}")
-        except Exception:
-            raw_text = "Raw Response の確認不可"
-            
-        if response.status_code != 200:
-            add_log(f"❌ 失敗！Allganizeサーバーからエラーコード({response.status_code})が返されました。上記のRAWデータを確認してください。")
-            bot_message = f"❌ APIサーバー連携エラー ({response.status_code}): {raw_text}"
-        else:
-            try:
-                result_data = response.json()
-            except json.JSONDecodeError:
-                result_data = {}
-                add_log("JSON形式ではありません。")
+        add_log("受信した結果データのパースを開始（HTMLキャンバスおよび要約情報の抽出）...")
+        # Since chats come as a list, find the last BOT message
+        for chat in reversed(chats):
+            if chat.get("sender") == "BOT":
+                bot_message = chat.get("message", "")
                 
-            add_log("受信した結果データのパースを開始（HTMLキャンバスおよび要約情報の抽出）...")
-            try:
-                data_block = result_data.get("data", {})
-                result_block = data_block.get("result", {}) if data_block else result_data.get("result", {})
-                
-                if isinstance(result_block, dict):
-                    metadata = result_block.get("metadata", {})
-                    if isinstance(metadata, dict):
-                        html_content = metadata.get("last_canvas_content", "")
-                    
-                    if result_block.get("response"):
-                        bot_message = result_block.get("response")
-                
-                if not html_content and not bot_message:
-                    variables = result_block.get("variables", {})
-                    if "RESPONSE" in variables:
-                        bot_message = variables["RESPONSE"]
+                # Check for metadata/canvas
+                try:
+                    metadata_str = chat.get("metadata", "{}")
+                    if isinstance(metadata_str, str):
+                        metadata = json.loads(metadata_str)
                     else:
-                        responses = result_block.get("responses", [])
-                        if isinstance(responses, list):
-                            for resp in responses:
-                                if resp.get("sender") == "BOT":
-                                    bot_message = resp.get("message", "")
-                add_log("パース成功！分析結果を生成します。")
-            except Exception as parse_e:
-                bot_message = f"応答のパースに失敗: {parse_e}"
-                add_log("パース中にエラーが発生しました。Raw Dataを確認してください。")
+                        metadata = metadata_str
+                    
+                    if isinstance(metadata, dict) and "last_canvas_content" in metadata:
+                        html_content = metadata.get("last_canvas_content", "")
+                except Exception:
+                    pass
+                break
+                
+        if not bot_message:
+            bot_message = "BOTから有効なメッセージを受け取れませんでした。"
+            
+        add_log("パース成功！分析結果を生成します。")
                 
         st.session_state.eval_results = {
             "html_content": html_content,
@@ -129,7 +142,7 @@ def background_task(file_name, file_bytes, file_type, situation_desc):
         st.session_state.eval_status = "done"
 
     except requests.exceptions.Timeout:
-        add_log("❌ 応答制限時間（10分）を超過しました。サーバー側の処理が遅延しています。")
+        add_log("❌ 応答制限時間を超過しました。サーバー側の処理が遅延しています。")
         st.session_state.eval_results = {"bot_message": "❌ API呼び出し中にエラーが発生しました: リクエストがタイムアウトしました。", "html_content": "", "result_data": {}}
         st.session_state.eval_status = "done"
     except Exception as e:
